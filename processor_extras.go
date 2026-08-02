@@ -125,6 +125,11 @@ func handlePdfProtect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Senha é obrigatória", http.StatusBadRequest)
 		return
 	}
+	// Segurança: exigir senha com comprimento mínimo razoável
+	if len([]rune(password)) < 8 {
+		http.Error(w, "A senha deve ter no mínimo 8 caracteres", http.StatusBadRequest)
+		return
+	}
 
 	file, _, err := r.FormFile("pdf")
 	if err != nil {
@@ -203,6 +208,13 @@ func handleImgCompress(w http.ResponseWriter, r *http.Request) {
 	quality := 80
 	if q, err := strconv.Atoi(qualityStr); err == nil {
 		quality = q
+	}
+	// Segurança: clampar qualidade dentro do intervalo válido do codec JPEG
+	if quality < 1 {
+		quality = 1
+	}
+	if quality > 100 {
+		quality = 100
 	}
 
 	file, _, err := r.FormFile("image")

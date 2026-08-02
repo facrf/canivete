@@ -105,8 +105,13 @@ func handleResize(w http.ResponseWriter, r *http.Request) {
 	width, _ := strconv.Atoi(r.FormValue("width"))
 	height, _ := strconv.Atoi(r.FormValue("height"))
 
+	const maxDimension = 8000
 	if width <= 0 || height <= 0 {
-		http.Error(w, "Dimensões inválidas", http.StatusBadRequest)
+		http.Error(w, "Dimensões inválidas: devem ser maiores que zero", http.StatusBadRequest)
+		return
+	}
+	if width > maxDimension || height > maxDimension {
+		http.Error(w, "Dimensões inválidas: máximo permitido é 8000px", http.StatusBadRequest)
 		return
 	}
 
@@ -370,7 +375,7 @@ func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	r.ParseMultipartForm(maxUploadSize)
 
-	width := r.FormValue("width") // opcional, ex: 1024
+	widthStr := r.FormValue("width") // opcional, ex: 1024
 
 	file, _, err := r.FormFile("svg")
 	if err != nil {
@@ -385,7 +390,7 @@ func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer os.Remove(tmpSvg.Name())
-	
+
 	io.Copy(tmpSvg, file)
 	tmpSvg.Close()
 
@@ -393,8 +398,15 @@ func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
 	defer os.Remove(outName)
 
 	args := []string{"-f", "png", "-o", outName}
-	if width != "" && width != "0" {
-		args = append(args, "-w", width)
+	// Segurança: validar width como inteiro positivo dentro de limite razoável
+	// antes de passar como argumento ao processo externo rsvg-convert
+	if widthStr != "" && widthStr != "0" {
+		wParsed, err := strconv.Atoi(widthStr)
+		if err != nil || wParsed <= 0 || wParsed > 8000 {
+			http.Error(w, "Largura inválida: deve ser um número entre 1 e 8000", http.StatusBadRequest)
+			return
+		}
+		args = append(args, "-w", strconv.Itoa(wParsed))
 	}
 	args = append(args, tmpSvg.Name())
 
