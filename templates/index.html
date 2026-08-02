@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Canivete da Mata - Ferramentas de Imagem e PDF</title>
+    <title>{{ .T "title" }} - Tools</title>
     <link rel="icon" type="image/png" href="/static/canivete.png">
     <link rel="stylesheet" href="/static/pico.min.css">
     <link rel="stylesheet" href="/static/cropper.min.css">
@@ -116,42 +116,54 @@
 </head>
 <body>
     <main class="container">
+        <div style="position:absolute; top:1rem; right:1rem; text-align:right;">
+            <select id="lang-select" onchange="changeLang(this.value)" style="width: auto; padding: 5px 30px 5px 10px;">
+                <option value="pt" {{ if eq .Lang "pt" }}selected{{ end }}>🇧🇷 PT</option>
+                <option value="en" {{ if eq .Lang "en" }}selected{{ end }}>🇺🇸 EN</option>
+                <option value="es" {{ if eq .Lang "es" }}selected{{ end }}>🇪🇸 ES</option>
+                <option value="fr" {{ if eq .Lang "fr" }}selected{{ end }}>🇫🇷 FR</option>
+                <option value="de" {{ if eq .Lang "de" }}selected{{ end }}>🇩🇪 DE</option>
+                <option value="ru" {{ if eq .Lang "ru" }}selected{{ end }}>🇷🇺 RU</option>
+                <option value="zh" {{ if eq .Lang "zh" }}selected{{ end }}>🇨🇳 ZH</option>
+            </select>
+        </div>
+
         <div class="hero">
             <img src="/static/canivete.png" alt="Canivete da Mata Logo" style="width: 80px; height: 80px; border-radius: 20%; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            <h1>Canivete da Mata</h1>
-            <p>Sua ferramenta offline, leve e rápida para processamento de imagens e PDFs.</p>
+            <h1>{{ .T "title" }}</h1>
+            <p>{{ .T "subtitle" }}</p>
         </div>
 
         <div class="grid-cards">
             
             <!-- Remover Fundo -->
             <article class="card">
-                <header>🪄 Remover Fundo</header>
+                <header>{{ .T "remove_bg_title" }}</header>
                 <div class="content">
-                    <p>Remove fundos brancos de imagens. Ajuste a tolerância para melhor precisão.</p>
+                    <p>{{ .T "remove_bg_desc" }}</p>
                     <form id="form-remove-bg" action="/process/remove-bg" method="POST" enctype="multipart/form-data">
                         <input type="file" name="image" accept="image/*" required>
                         <div class="slider-container">
-                            <label for="tolerance">Tolerância (Branco): <strong id="tol-val">10</strong>%</label>
+                            <label for="tolerance">{{ .T "tolerance" }}: <strong id="tol-val">10</strong>%</label>
                             <input type="range" name="tolerance" min="1" max="100" value="10" 
                                    oninput="document.getElementById('tol-val').innerText = this.value">
                         </div>
-                        <button type="submit">Processar Transparência</button>
+                        <button type="submit">{{ .T "process" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- Recortar (Quadrado Interativo) -->
             <article class="card">
-                <header>✂️ Recorte Quadrado Interativo</header>
+                <header>{{ .T "crop_title" }}</header>
                 <div class="content">
-                    <p>Selecione exatamente a parte da imagem que deseja recortar.</p>
+                    <p>{{ .T "crop_desc" }}</p>
                     <form id="form-crop" action="/process/crop" method="POST" enctype="multipart/form-data">
                         <input type="file" id="crop-file-input" name="image" accept="image/*" required>
                         
@@ -166,155 +178,312 @@
                         <input type="hidden" name="height" id="crop-h">
 
                         <select name="size" required>
-                            <option value="0">Tamanho Original do Recorte</option>
+                            <option value="0">{{ .T "size_original" }}</option>
                             <option value="16">16x16 (Favicon)</option>
                             <option value="32">32x32 (Favicon)</option>
                             <option value="144">144x144</option>
                             <option value="256">256x256</option>
                             <option value="512">512x512</option>
                         </select>
-                        <button type="submit" id="btn-crop" style="margin-top: 1rem;">Recortar Imagem</button>
+                        <button type="submit" id="btn-crop" style="margin-top: 1rem;">{{ .T "crop_btn" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- Redimensionar -->
             <article class="card">
-                <header>📏 Redimensionar</header>
+                <header>{{ .T "resize_title" }}</header>
                 <div class="content">
-                    <p>Altere a resolução da sua imagem com precisão (Largura x Altura).</p>
+                    <p>{{ .T "resize_desc" }}</p>
                     <form id="form-resize" action="/process/resize" method="POST" enctype="multipart/form-data">
                         <input type="file" name="image" accept="image/*" required>
                         <div class="grid">
-                            <input type="number" name="width" placeholder="Largura (px)" required min="1">
-                            <input type="number" name="height" placeholder="Altura (px)" required min="1">
+                            <input type="number" name="width" placeholder="{{ .T "width_px" }}" required min="1">
+                            <input type="number" name="height" placeholder="{{ .T "height_px" }}" required min="1">
                         </div>
-                        <button type="submit">Redimensionar</button>
+                        <button type="submit">{{ .T "resize_btn" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- Converter Formato -->
             <article class="card">
-                <header>🔄 Converter Formato</header>
+                <header>{{ .T "convert_title" }}</header>
                 <div class="content">
-                    <p>Converta imagens entre PNG, JPG e BMP com controle de compressão.</p>
+                    <p>{{ .T "convert_desc" }}</p>
                     <form id="form-convert" action="/process/convert" method="POST" enctype="multipart/form-data">
                         <input type="file" name="image" accept="image/*" required>
                         <select name="format" required>
-                            <option value="png">PNG (Transparente)</option>
-                            <option value="jpg">JPG (Comprimido)</option>
-                            <option value="bmp">BMP (Sem perda)</option>
+                            <option value="png">{{ .T "png_transp" }}</option>
+                            <option value="jpg">{{ .T "jpg_comp" }}</option>
+                            <option value="bmp">{{ .T "bmp_lossless" }}</option>
                         </select>
                         <div class="slider-container">
-                            <label for="quality">Qualidade JPG: <strong id="quality-val">80</strong>%</label>
+                            <label for="quality">{{ .T "quality" }}: <strong id="quality-val">80</strong>%</label>
                             <input type="range" name="quality" min="1" max="100" value="80" 
                                    oninput="document.getElementById('quality-val').innerText = this.value">
                         </div>
-                        <button type="submit">Converter</button>
+                        <button type="submit">{{ .T "convert_btn" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- Imagens para PDF -->
             <article class="card">
-                <header>📄 Imagens p/ PDF</header>
+                <header>{{ .T "img2pdf_title" }}</header>
                 <div class="content">
-                    <p>Combine várias imagens em um único arquivo PDF.</p>
+                    <p>{{ .T "img2pdf_desc" }}</p>
                     <form id="form-img-pdf" action="/process/img-to-pdf" method="POST" enctype="multipart/form-data">
                         <input type="file" name="images" accept="image/*" multiple required>
-                        <button type="submit">Gerar PDF</button>
+                        <button type="submit">{{ .T "gen_pdf" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- SVG para Imagem -->
             <article class="card">
-                <header>🔤 SVG p/ Imagem</header>
+                <header>{{ .T "svg2img_title" }}</header>
                 <div class="content">
-                    <p>Renderize um vetor SVG para PNG puro.</p>
+                    <p>{{ .T "svg2img_desc" }}</p>
                     <form id="form-svg-img" action="/process/svg-to-img" method="POST" enctype="multipart/form-data">
                         <input type="file" name="svg" accept=".svg" required onchange="previewImage(this)">
                         
                         <label>
-                            Largura Desejada em Pixels (Opcional):
+                            {{ .T "desired_width" }}
                             <input type="number" name="width" placeholder="Ex: 1024" min="1">
-                            <small style="display:block;margin-top:-0.5rem;margin-bottom:1rem;color:var(--muted-color)">Deixe em branco para manter original</small>
+                            <small style="display:block;margin-top:-0.5rem;margin-bottom:1rem;color:var(--muted-color)">{{ .T "blank_original" }}</small>
                         </label>
                         
-                        <button type="submit">Rasterizar para PNG</button>
+                        <button type="submit">{{ .T "rasterize_png" }}</button>
                     </form>
-                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
             <!-- PDF para Imagens (Rasterize / Extract) -->
             <article class="card">
-                <header>🖼️ PDF p/ Imagens (Extrair/Converter)</header>
+                <header>{{ .T "pdf2img_title" }}</header>
                 <div class="content">
-                    <p>Extraia imagens ou converta todas as páginas do PDF em imagens (em ZIP).</p>
+                    <p>{{ .T "pdf2img_desc" }}</p>
                     
                     <form id="form-pdf-action" method="POST" enctype="multipart/form-data">
                         <input type="file" name="pdf" accept="application/pdf" required>
                         
                         <fieldset>
-                            <legend>Ação Desejada:</legend>
+                            <legend>{{ .T "desired_action" }}</legend>
                             <label for="action-rasterize">
                                 <input type="radio" id="action-rasterize" name="pdf_action" value="/process/pdf-rasterize" checked>
-                                Converter as páginas inteiras em Imagem
+                                {{ .T "convert_pages" }}
                             </label>
                             <label for="action-extract">
                                 <input type="radio" id="action-extract" name="pdf_action" value="/process/pdf-to-img">
-                                Apenas Extrair Imagens soltas contidas no PDF
+                                {{ .T "extract_images" }}
                             </label>
                         </fieldset>
 
-                        <button type="button" onclick="submitPdfAction()">Processar PDF</button>
+                        <button type="button" onclick="submitPdfAction()">{{ .T "process_pdf" }}</button>
                     </form>
-                    <div class="loading" id="pdf-loading"><div class="spinner"></div> Processando...</div>
+                    <div class="loading" id="pdf-loading"><div class="spinner"></div> {{ .T "processing" }}</div>
                     <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
                         <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
-                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
-                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+
+            <!-- Otimizador de Imagem -->
+            <article class="card">
+                <header>{{ .T "compress_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "compress_desc" }}</p>
+                    <form action="/process/img-compress" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <div class="slider-container">
+                            <label>{{ .T "quality" }}: <strong id="c-qual-val">60</strong>%</label>
+                            <input type="range" name="quality" min="1" max="100" value="60" 
+                                   oninput="document.getElementById('c-qual-val').innerText = this.value">
+                        </div>
+                        <button type="submit">{{ .T "compress_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Paleta de Cores -->
+            <article class="card">
+                <header>{{ .T "palette_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "palette_desc" }}</p>
+                    <form action="/process/img-palette" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <button type="submit">{{ .T "extract_palette" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Gerador de QR Code -->
+            <article class="card">
+                <header>{{ .T "qr_gen_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "qr_gen_desc" }}</p>
+                    <form action="/process/qr-generate" method="POST" enctype="multipart/form-data">
+                        <input type="text" name="text" placeholder="{{ .T "qr_gen_ph" }}" required style="margin-bottom:1rem;">
+                        <button type="submit">{{ .T "gen_qr_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Leitor de QR Code -->
+            <article class="card">
+                <header>{{ .T "qr_read_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "qr_read_desc" }}</p>
+                    <form action="/process/qr-read" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <button type="submit">{{ .T "decode_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- PDF Merge -->
+            <article class="card">
+                <header>{{ .T "pdf_merge_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_merge_desc" }}</p>
+                    <form action="/process/pdf-merge" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdfs" accept="application/pdf" multiple required>
+                        <button type="submit">{{ .T "merge_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF Split -->
+            <article class="card">
+                <header>{{ .T "pdf_split_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_split_desc" }}</p>
+                    <form action="/process/pdf-split" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required>
+                        <button type="submit">{{ .T "split_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF Optimize -->
+            <article class="card">
+                <header>{{ .T "pdf_opt_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_opt_desc" }}</p>
+                    <form action="/process/pdf-optimize" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required>
+                        <button type="submit">{{ .T "opt_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF Protect -->
+            <article class="card">
+                <header>{{ .T "pdf_prot_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_prot_desc" }}</p>
+                    <form action="/process/pdf-protect" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required style="margin-bottom:0.5rem;">
+                        <input type="password" name="password" placeholder="{{ .T "pass_ph" }}" required style="margin-bottom:1rem;">
+                        <button type="submit">{{ .T "protect_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
                     </div>
                 </div>
             </article>
 
         </div>
+        </div>
     </main>
 
     <!-- O Modal Global foi removido em favor de resultados in-line nas próprias docas (cards) -->
 
-    <script src="/static/cropper.min.js"></script>
+    <script src="/static/cropper.min.js">
+        function changeLang(lang) {
+            document.cookie = "lang=" + lang + ";path=/;max-age=31536000";
+            window.location.reload();
+        }
+</script>
     <script>
         // Cropper logic
         let cropper;
@@ -427,19 +596,29 @@
                     throw new Error(errText);
                 }
                 
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
+                                const contentType = response.headers.get("content-type");
                 
-                let filename = "resultado";
-                const cd = response.headers.get('Content-Disposition');
-                if (cd && cd.indexOf('filename=') !== -1) {
-                    const parts = cd.split('filename="');
-                    if (parts.length > 1) {
-                        filename = parts[1].split('"')[0];
+                if (contentType && contentType.includes("application/json")) {
+                    const data = await response.json();
+                    showJsonPreview(form, data);
+                } else if (contentType && contentType.includes("text/plain")) {
+                    const text = await response.text();
+                    showTextPreview(form, text);
+                } else {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    let filename = "resultado";
+                    const cd = response.headers.get('Content-Disposition');
+                    if (cd && cd.indexOf('filename=') !== -1) {
+                        const parts = cd.split('filename="');
+                        if (parts.length > 1) {
+                            filename = parts[1].split('"')[0];
+                        }
                     }
-                }
 
-                showPreview(form, url, blob.type, filename);
+                    showPreview(form, url, blob.type, filename);
+                }
                 
             } catch (error) {
                 console.error(error);
@@ -447,6 +626,43 @@
                 btn.disabled = false;
                 loading.style.display = 'none';
             }
+        }
+
+                function showJsonPreview(form, data) {
+            const container = form.parentNode;
+            const resultArea = container.querySelector('.result-area');
+            form.style.display = 'none';
+            resultArea.style.display = 'block';
+            
+            if (data.colors) {
+                let html = '<h4>Cores Extraídas:</h4><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:1rem;">';
+                data.colors.forEach(c => {
+                    html += `<div style="text-align:center"><div style="width:50px;height:50px;background-color:${c};border-radius:8px;border:1px solid #444;"></div><code>${c}</code></div>`;
+                });
+                html += '</div>';
+                let custom = resultArea.querySelector('.custom-result');
+                if(!custom) { custom = document.createElement('div'); custom.className = 'custom-result'; resultArea.insertBefore(custom, resultArea.firstChild); }
+                custom.innerHTML = html;
+                custom.style.display = 'block';
+            }
+            resultArea.querySelector('.download-btn').style.display = 'none';
+            resultArea.querySelector('.result-img').style.display = 'none';
+        }
+
+        function showTextPreview(form, text) {
+            const container = form.parentNode;
+            const resultArea = container.querySelector('.result-area');
+            form.style.display = 'none';
+            resultArea.style.display = 'block';
+            
+            let html = `<h4>Texto Extraído:</h4><textarea readonly style="width:100%;height:150px;font-family:monospace;resize:none;">${text}</textarea>`;
+            let custom = resultArea.querySelector('.custom-result');
+            if(!custom) { custom = document.createElement('div'); custom.className = 'custom-result'; resultArea.insertBefore(custom, resultArea.firstChild); }
+            custom.innerHTML = html;
+            custom.style.display = 'block';
+            
+            resultArea.querySelector('.download-btn').style.display = 'none';
+            resultArea.querySelector('.result-img').style.display = 'none';
         }
 
         function showPreview(form, url, type, filename) {
@@ -472,6 +688,10 @@
             closeBtn.onclick = function() {
                 resultArea.style.display = 'none';
                 form.style.display = 'block';
+                const custom = resultArea.querySelector('.custom-result');
+                if(custom) custom.style.display = 'none';
+                const dlBtn = resultArea.querySelector('.download-btn');
+                if(dlBtn) dlBtn.style.display = 'block';
                 if (form.id !== 'form-crop') {
                     form.reset();
                     const inputPreview = form.querySelector('.input-preview');
@@ -485,6 +705,11 @@
                 }
             };
         }
-    </script>
+    
+        function changeLang(lang) {
+            document.cookie = "lang=" + lang + ";path=/;max-age=31536000";
+            window.location.reload();
+        }
+</script>
 </body>
 </html>
