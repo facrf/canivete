@@ -23,6 +23,14 @@ func init() {
 	}
 }
 
+type PageData struct {
+	Lang string
+}
+
+func (p PageData) T(k string) string {
+	return translate(p.Lang, k)
+}
+
 func main() {
 	mux := http.NewServeMux()
 
@@ -41,19 +49,17 @@ func main() {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+
 		lang := getLang(r)
+		data := PageData{Lang: lang}
 
-		data := struct {
-			Lang string
-			T    func(string) string
-		}{
-			Lang: lang,
-			T: func(k string) string {
-				return translate(lang, k)
-			},
+		err := tmpl.Execute(w, data)
+		if err != nil {
+			log.Printf("Erro ao executar template: %v", err)
 		}
-
-		tmpl.Execute(w, data)
 	})
 
 	// Rotas de processamento
