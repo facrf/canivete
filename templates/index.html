@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Canivete da Mata - Ferramentas de Imagem e PDF</title>
+    <link rel="icon" type="image/png" href="/static/canivete.png">
+    <link rel="stylesheet" href="/static/pico.min.css">
+    <link rel="stylesheet" href="/static/cropper.min.css">
+    <style>
+        :root {
+            --primary: #10B981;
+            --primary-hover: #059669;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            padding-top: 2rem;
+            padding-bottom: 4rem;
+        }
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeIn 0.8s ease-out;
+        }
+        .hero h1 {
+            color: var(--primary);
+            font-weight: 800;
+            letter-spacing: -0.05em;
+        }
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+        article.card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-top: 4px solid var(--primary);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        article.card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .card header {
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .card .content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        input[type="file"] {
+            margin-bottom: 1rem;
+        }
+        .slider-container {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Cropper UI */
+        #cropper-container {
+            width: 100%;
+            max-height: 400px;
+            margin-bottom: 1rem;
+            display: none;
+            background-color: #222;
+        }
+        #cropper-image {
+            max-width: 100%;
+        }
+        
+        #preview-modal dialog article {
+            max-width: 800px;
+            text-align: center;
+        }
+        #preview-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--primary);
+            font-weight: bold;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(16, 185, 129, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <div class="hero">
+            <img src="/static/canivete.png" alt="Canivete da Mata Logo" style="width: 80px; height: 80px; border-radius: 20%; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+            <h1>Canivete da Mata</h1>
+            <p>Sua ferramenta offline, leve e rápida para processamento de imagens e PDFs.</p>
+        </div>
+
+        <div class="grid-cards">
+            
+            <!-- Remover Fundo -->
+            <article class="card">
+                <header>🪄 Remover Fundo</header>
+                <div class="content">
+                    <p>Remove fundos brancos de imagens. Ajuste a tolerância para melhor precisão.</p>
+                    <form id="form-remove-bg" action="/process/remove-bg" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <div class="slider-container">
+                            <label for="tolerance">Tolerância (Branco): <strong id="tol-val">10</strong>%</label>
+                            <input type="range" name="tolerance" min="1" max="100" value="10" 
+                                   oninput="document.getElementById('tol-val').innerText = this.value">
+                        </div>
+                        <button type="submit">Processar Transparência</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Recortar (Quadrado Interativo) -->
+            <article class="card">
+                <header>✂️ Recorte Quadrado Interativo</header>
+                <div class="content">
+                    <p>Selecione exatamente a parte da imagem que deseja recortar.</p>
+                    <form id="form-crop" action="/process/crop" method="POST" enctype="multipart/form-data">
+                        <input type="file" id="crop-file-input" name="image" accept="image/*" required>
+                        
+                        <!-- Visualizador do Cropper -->
+                        <div id="cropper-container">
+                            <img id="cropper-image" src="" alt="Imagem para recortar">
+                        </div>
+                        
+                        <input type="hidden" name="x" id="crop-x">
+                        <input type="hidden" name="y" id="crop-y">
+                        <input type="hidden" name="width" id="crop-w">
+                        <input type="hidden" name="height" id="crop-h">
+
+                        <select name="size" required>
+                            <option value="0">Tamanho Original do Recorte</option>
+                            <option value="16">16x16 (Favicon)</option>
+                            <option value="32">32x32 (Favicon)</option>
+                            <option value="144">144x144</option>
+                            <option value="256">256x256</option>
+                            <option value="512">512x512</option>
+                        </select>
+                        <button type="submit" id="btn-crop" style="margin-top: 1rem;">Recortar Imagem</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Redimensionar -->
+            <article class="card">
+                <header>📏 Redimensionar</header>
+                <div class="content">
+                    <p>Altere a resolução da sua imagem com precisão (Largura x Altura).</p>
+                    <form id="form-resize" action="/process/resize" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <div class="grid">
+                            <input type="number" name="width" placeholder="Largura (px)" required min="1">
+                            <input type="number" name="height" placeholder="Altura (px)" required min="1">
+                        </div>
+                        <button type="submit">Redimensionar</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Converter Formato -->
+            <article class="card">
+                <header>🔄 Converter Formato</header>
+                <div class="content">
+                    <p>Converta imagens entre PNG, JPG e BMP com controle de compressão.</p>
+                    <form id="form-convert" action="/process/convert" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <select name="format" required>
+                            <option value="png">PNG (Transparente)</option>
+                            <option value="jpg">JPG (Comprimido)</option>
+                            <option value="bmp">BMP (Sem perda)</option>
+                        </select>
+                        <div class="slider-container">
+                            <label for="quality">Qualidade JPG: <strong id="quality-val">80</strong>%</label>
+                            <input type="range" name="quality" min="1" max="100" value="80" 
+                                   oninput="document.getElementById('quality-val').innerText = this.value">
+                        </div>
+                        <button type="submit">Converter</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Imagens para PDF -->
+            <article class="card">
+                <header>📄 Imagens p/ PDF</header>
+                <div class="content">
+                    <p>Combine várias imagens em um único arquivo PDF.</p>
+                    <form id="form-img-pdf" action="/process/img-to-pdf" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="images" accept="image/*" multiple required>
+                        <button type="submit">Gerar PDF</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF para Imagens (Rasterize / Extract) -->
+            <article class="card">
+                <header>🖼️ PDF p/ Imagens (Extrair/Converter)</header>
+                <div class="content">
+                    <p>Extraia imagens ou converta todas as páginas do PDF em imagens (em ZIP).</p>
+                    
+                    <form id="form-pdf-action" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required>
+                        
+                        <fieldset>
+                            <legend>Ação Desejada:</legend>
+                            <label for="action-rasterize">
+                                <input type="radio" id="action-rasterize" name="pdf_action" value="/process/pdf-rasterize" checked>
+                                Converter as páginas inteiras em Imagem
+                            </label>
+                            <label for="action-extract">
+                                <input type="radio" id="action-extract" name="pdf_action" value="/process/pdf-to-img">
+                                Apenas Extrair Imagens soltas contidas no PDF
+                            </label>
+                        </fieldset>
+
+                        <button type="button" onclick="submitPdfAction()">Processar PDF</button>
+                    </form>
+                    <div class="loading" id="pdf-loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
+        </div>
+    </main>
+
+    <!-- O Modal Global foi removido em favor de resultados in-line nas próprias docas (cards) -->
+
+    <script src="/static/cropper.min.js"></script>
+    <script>
+        // Cropper logic
+        let cropper;
+        const cropInput = document.getElementById('crop-file-input');
+        const cropImg = document.getElementById('cropper-image');
+        const cropContainer = document.getElementById('cropper-container');
+
+        cropInput.addEventListener('change', function (e) {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    cropImg.src = event.target.result;
+                    cropContainer.style.display = 'block';
+                    
+                    if (cropper) {
+                        cropper.destroy();
+                    }
+                    
+                    cropper = new Cropper(cropImg, {
+                        aspectRatio: 1, // Recorte quadrado por padrão
+                        viewMode: 1,
+                        background: false
+                    });
+                };
+                reader.readAsDataURL(files[0]);
+            }
+        });
+
+        // Preview automático para os outros inputs de imagem (exceto PDF, múltiplos e o próprio crop)
+        document.querySelectorAll('input[type="file"][accept="image/*"]').forEach(input => {
+            if (input.id === 'crop-file-input' || input.multiple) return;
+
+            input.addEventListener('change', function(e) {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        let previewImg = input.parentNode.querySelector('.input-preview');
+                        if (!previewImg) {
+                            previewImg = document.createElement('img');
+                            previewImg.className = 'input-preview';
+                            previewImg.style.maxWidth = '100%';
+                            previewImg.style.maxHeight = '200px';
+                            previewImg.style.borderRadius = '8px';
+                            previewImg.style.marginTop = '0.5rem';
+                            previewImg.style.marginBottom = '1rem';
+                            previewImg.style.display = 'block';
+                            previewImg.style.marginLeft = 'auto';
+                            previewImg.style.marginRight = 'auto';
+                            previewImg.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+                            input.insertAdjacentElement('afterend', previewImg);
+                        }
+                        previewImg.src = event.target.result;
+                        previewImg.style.display = 'block';
+                    };
+                    reader.readAsDataURL(files[0]);
+                } else {
+                    const previewImg = input.parentNode.querySelector('.input-preview');
+                    if (previewImg) previewImg.style.display = 'none';
+                }
+            });
+        });
+
+        document.getElementById('form-crop').addEventListener('submit', function (e) {
+            if (cropper) {
+                const cropData = cropper.getData();
+                document.getElementById('crop-x').value = cropData.x;
+                document.getElementById('crop-y').value = cropData.y;
+                document.getElementById('crop-w').value = cropData.width;
+                document.getElementById('crop-h').value = cropData.height;
+            }
+        });
+
+        // Intercept form submissions
+        document.querySelectorAll('form').forEach(form => {
+            if (form.id === 'form-pdf-action') return; // Handled separately
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await handleFormSubmit(form, form.action);
+            });
+        });
+
+        async function submitPdfAction() {
+            const form = document.getElementById('form-pdf-action');
+            if (!form.reportValidity()) return;
+            
+            const selectedAction = form.querySelector('input[name="pdf_action"]:checked').value;
+            await handleFormSubmit(form, selectedAction);
+        }
+
+        async function handleFormSubmit(form, urlAction) {
+            const btn = form.querySelector('button');
+            const loading = form.parentNode.querySelector('.loading');
+            
+            btn.disabled = true;
+            loading.style.display = 'block';
+            
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(urlAction, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errText = await response.text();
+                    alert("Erro: " + errText);
+                    throw new Error(errText);
+                }
+                
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                
+                let filename = "resultado";
+                const cd = response.headers.get('Content-Disposition');
+                if (cd && cd.indexOf('filename=') !== -1) {
+                    const parts = cd.split('filename="');
+                    if (parts.length > 1) {
+                        filename = parts[1].split('"')[0];
+                    }
+                }
+
+                showPreview(form, url, blob.type, filename);
+                
+            } catch (error) {
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function showPreview(form, url, type, filename) {
+            const container = form.parentNode;
+            const resultArea = container.querySelector('.result-area');
+            const img = resultArea.querySelector('.result-img');
+            const btn = resultArea.querySelector('.download-btn');
+            const closeBtn = resultArea.querySelector('.close-btn');
+            
+            form.style.display = 'none';
+            resultArea.style.display = 'block';
+            
+            btn.href = url;
+            btn.download = filename;
+            
+            if (type.startsWith('image/')) {
+                img.src = url;
+                img.style.display = 'inline-block';
+            } else {
+                img.style.display = 'none';
+            }
+            
+            closeBtn.onclick = function() {
+                resultArea.style.display = 'none';
+                form.style.display = 'block';
+                if (form.id !== 'form-crop') {
+                    form.reset();
+                    const inputPreview = form.querySelector('.input-preview');
+                    if (inputPreview) inputPreview.style.display = 'none';
+                } else if (cropper) {
+                    // Limpar cropper caso seja o form de crop
+                    cropper.destroy();
+                    cropper = null;
+                    document.getElementById('cropper-container').style.display = 'none';
+                    form.reset();
+                }
+            };
+        }
+    </script>
+</body>
+</html>
