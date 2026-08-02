@@ -474,6 +474,156 @@
             </article>
 
         </div>
+        
+        <br><h3 style="text-align:center; color: var(--primary);">✨ Extras (Novidades)</h3>
+        <div class="grid-cards">
+            <!-- EXIF Stripper -->
+            <article class="card">
+                <header>{{ .T "exif_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "exif_desc" }}</p>
+                    <form action="/process/img-exif-strip" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/jpeg, image/png" required>
+                        <button type="submit">{{ .T "exif_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Image Rotate -->
+            <article class="card">
+                <header>{{ .T "rotate_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "rotate_desc" }}</p>
+                    <form action="/process/img-rotate" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <select name="action" required>
+                            <option value="rot90">{{ .T "rotate_90" }}</option>
+                            <option value="rot180">{{ .T "rotate_180" }}</option>
+                            <option value="rot270">{{ .T "rotate_270" }}</option>
+                            <option value="fliph">{{ .T "flip_h" }}</option>
+                            <option value="flipv">{{ .T "flip_v" }}</option>
+                        </select>
+                        <button type="submit">{{ .T "rotate_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- ICO Generator -->
+            <article class="card">
+                <header>{{ .T "ico_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "ico_desc" }}</p>
+                    <form action="/process/img-to-ico" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*" required>
+                        <button type="submit">{{ .T "ico_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF Rotate -->
+            <article class="card">
+                <header>{{ .T "pdf_rotate_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_rotate_desc" }}</p>
+                    <form action="/process/pdf-rotate" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required style="margin-bottom:0.5rem;">
+                        <div class="grid">
+                            <input type="text" name="pages" placeholder="{{ .T "pdf_pages_ph" }}">
+                            <select name="degrees" required>
+                                <option value="90">{{ .T "rotate_90" }}</option>
+                                <option value="180">{{ .T "rotate_180" }}</option>
+                                <option value="270">{{ .T "rotate_270" }}</option>
+                            </select>
+                        </div>
+                        <button type="submit">{{ .T "pdf_rotate_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- PDF Watermark -->
+            <article class="card">
+                <header>{{ .T "pdf_wm_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "pdf_wm_desc" }}</p>
+                    <form action="/process/pdf-watermark" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="pdf" accept="application/pdf" required style="margin-bottom:0.5rem;">
+                        <input type="text" name="text" placeholder="{{ .T "wm_text_ph" }}" required style="margin-bottom:1rem;">
+                        <button type="submit">{{ .T "pdf_wm_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Base64 -->
+            <article class="card">
+                <header>{{ .T "b64_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "b64_desc" }}</p>
+                    <form action="/process/base64" method="POST" enctype="multipart/form-data">
+                        <select name="mode" required onchange="document.getElementById('b64-file').style.display = this.value=='encode'?'block':'none'; document.getElementById('b64-text').style.display = this.value=='decode'?'block':'none';">
+                            <option value="encode">{{ .T "b64_encode" }}</option>
+                            <option value="decode">{{ .T "b64_decode" }}</option>
+                        </select>
+                        <input type="file" id="b64-file" name="file" style="margin-top:0.5rem;">
+                        <textarea id="b64-text" name="text" placeholder="{{ .T "b64_text_ph" }}" style="display:none; margin-top:0.5rem;"></textarea>
+                        <button type="submit">{{ .T "b64_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Minifier -->
+            <article class="card">
+                <header>{{ .T "minify_title" }}</header>
+                <div class="content">
+                    <p>{{ .T "minify_desc" }}</p>
+                    <form action="/process/minify" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="file" accept=".html,.css,.js,.json" required style="margin-bottom:0.5rem;">
+                        <button type="submit">{{ .T "minify_btn" }}</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> {{ .T "processing" }}</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">{{ .T "download" }}</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">{{ .T "close" }}</button>
+                    </div>
+                </div>
+            </article>
+        </div>
         </div>
     </main>
 

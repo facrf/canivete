@@ -64,5 +64,44 @@
   "pdf_prot_desc": "Adicione uma senha ao seu PDF para proteger o documento.",
   "pass_ph": "Digite a Senha Forte",
   "protect_btn": "Proteger com Senha",
+  
+  "exif_title": "🕵️ Remover Metadados",
+  "exif_desc": "Apague EXIF (GPS, Data, Câmera) de fotos JPG/PNG garantindo privacidade.",
+  "exif_btn": "Limpar Foto",
+
+  "rotate_title": "🔄 Girar & Espelhar Imagem",
+  "rotate_desc": "Gire em vários ângulos ou espelhe a imagem vertical/horizontalmente.",
+  "rotate_90": "Girar 90º",
+  "rotate_180": "Girar 180º",
+  "rotate_270": "Girar 270º",
+  "flip_h": "Espelhar Horizontal",
+  "flip_v": "Espelhar Vertical",
+  "rotate_btn": "Aplicar Rotação",
+
+  "ico_title": "🌐 Favicon ICO",
+  "ico_desc": "Gere um arquivo .ico real (16, 32 e 48px) para sites clássicos.",
+  "ico_btn": "Gerar .ico",
+
+  "pdf_rotate_title": "🔄 Girar PDF",
+  "pdf_rotate_desc": "Rotaciona páginas de um PDF (todas ou específicas).",
+  "pdf_pages_ph": "Ex: 1 ou 1,3 (Vazio=Todas)",
+  "pdf_rotate_btn": "Girar Páginas",
+
+  "pdf_wm_title": "🔏 Marca D'água PDF",
+  "pdf_wm_desc": "Adicione texto translúcido no fundo das páginas do PDF.",
+  "wm_text_ph": "Texto da marca d'água",
+  "pdf_wm_btn": "Aplicar Marca",
+
+  "b64_title": "🔠 Base64 Encode/Decode",
+  "b64_desc": "Transforme arquivos em texto Base64 ou decodifique um Base64 para arquivo.",
+  "b64_encode": "Codificar Arquivo",
+  "b64_decode": "Decodificar Texto",
+  "b64_text_ph": "Cole o Base64 aqui",
+  "b64_btn": "Processar Base64",
+
+  "minify_title": "📦 Minificador de Código",
+  "minify_desc": "Comprima arquivos HTML, CSS, JS e JSON para web.",
+  "minify_btn": "Minificar",
+
   "lang_select": "Idioma"
 }

@@ -82,6 +82,15 @@ func main() {
 	mux.HandleFunc("/process/qr-generate", handleQrGenerate)
 	mux.HandleFunc("/process/qr-read", handleQrRead)
 
+	// Extras 2.0 (Security & Dev)
+	mux.HandleFunc("/process/img-exif-strip", handleImgExifStrip)
+	mux.HandleFunc("/process/img-rotate", handleImgRotate)
+	mux.HandleFunc("/process/img-to-ico", handleImgToIco)
+	mux.HandleFunc("/process/pdf-rotate", handlePdfRotate)
+	mux.HandleFunc("/process/pdf-watermark", handlePdfWatermark)
+	mux.HandleFunc("/process/base64", handleBase64)
+	mux.HandleFunc("/process/minify", handleMinify)
+
 	// Iniciar servidor
 	port := "7001"
 	log.Printf("Servidor Canivete da Mata rodando na porta %s...", port)
