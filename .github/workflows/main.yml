@@ -1,0 +1,55 @@
+name: Build Canivete da Mata
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            goos: linux
+          - goarch: arm
+            goos: linux
+            goarm: 7
+          - goarch: arm64
+            goos: linux
+          - goarch: riscv64
+            goos: linux
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Download Go modules
+      run: go mod download
+
+    - name: Build Binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        GOARM: ${{ matrix.goarm }}
+        CGO_ENABLED: 0
+      run: |
+        OUTPUT_NAME=canivete-${{ matrix.goos }}-${{ matrix.goarch }}
+        if [ "${{ matrix.goarch }}" = "arm" ]; then
+          OUTPUT_NAME=${OUTPUT_NAME}v${{ matrix.goarm }}
+        fi
+        go build -ldflags="-w -s" -o $OUTPUT_NAME .
+        
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: canivete-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: canivete-*
