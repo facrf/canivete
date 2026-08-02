@@ -1,30 +1,101 @@
 # Canivete da Mata 🪓
 
-Canivete da Mata is a lightweight, offline, and fast web application for processing images and PDFs, written purely in Go without external C dependencies (except `librsvg` for SVG conversions).
+> Ferramenta web offline, leve e rápida para processamento de imagens e PDFs.  
+> Construída em Go puro. Zero dependências externas em runtime (exceto `librsvg` para SVG).
 
-## 🌍 Supported Languages
-The application supports multiple languages out-of-the-box:
-- [Português](README_pt.md)
-- [English](README_en.md)
-- [Español](README_es.md)
-- [Français](README_fr.md)
-- [Deutsch](README_de.md)
-- [Русский](README_ru.md)
-- [中文](README_zh.md)
+[![Build & Push GHCR](https://github.com/facrf/canivete/actions/workflows/docker-ghcr.yml/badge.svg)](https://github.com/facrf/canivete/actions/workflows/docker-ghcr.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Features
-- **Background Removal:** Easily remove white backgrounds.
-- **Cropping & Resizing:** Interactive crop and accurate resize.
-- **Format Converter:** Convert between PNG, JPG, BMP.
-- **Image Compressor:** Shrink JPG sizes significantly.
-- **Palette Extractor:** Get HEX colors from images.
-- **QR Code Tools:** Generate and decode QR codes.
-- **PDF Tools:** Images to PDF, merge, split, optimize, password protect, and extract/rasterize pages.
+---
 
-## Deployment
-Use Docker for zero-setup deployment:
+## 🌍 Documentação por Idioma
+
+| Idioma | Link |
+|--------|------|
+| 🇧🇷 Português | [README_pt.md](README_pt.md) |
+| 🇺🇸 English | [README_en.md](README_en.md) |
+| 🇪🇸 Español | [README_es.md](README_es.md) |
+| 🇫🇷 Français | [README_fr.md](README_fr.md) |
+| 🇩🇪 Deutsch | [README_de.md](README_de.md) |
+| 🇷🇺 Русский | [README_ru.md](README_ru.md) |
+| 🇨🇳 中文 | [README_zh.md](README_zh.md) |
+
+---
+
+## ✨ Funcionalidades
+
+| Categoria | Ferramentas |
+|-----------|------------|
+| 🖼️ **Imagem** | Remover fundo, recorte interativo, redimensionar, converter (PNG/JPG/BMP), comprimir |
+| 🎨 **Cores** | Extrair paleta de cores (HEX) |
+| 📄 **PDF** | Imagens → PDF, juntar PDFs, dividir PDF, otimizar, proteger com senha |
+| 🔁 **Conversão** | PDF → Imagens, SVG → PNG |
+| 📱 **QR Code** | Gerar e decodificar QR Codes e códigos de barras |
+
+---
+
+## 🚀 Deploy Rápido
+
+### Docker (linha de comando)
 ```bash
-docker build -t canivete-da-mata:latest .
-docker run -d -p 7001:7001 canivete-da-mata:latest
+docker run -d \
+  --name canivete-da-mata \
+  -p 7001:7001 \
+  --restart unless-stopped \
+  ghcr.io/facrf/canivete:latest
 ```
-Access at `http://localhost:7001`.
+Acesse em: **http://localhost:7001**
+
+### Docker Compose / Portainer Stack
+Consulte o arquivo [`docker-compose.yml`](docker-compose.yml) — compatível com Portainer.
+
+No Portainer:
+1. Stacks → **Add Stack** → Web editor
+2. Cole o conteúdo de `docker-compose.yml`
+3. Clique em **Deploy the stack**
+
+### Build local (a partir do código-fonte)
+```bash
+git clone http://192.168.0.10:3010/facrf/canivete.git
+cd canivete
+docker build -t canivete-da-mata:latest .
+docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
+```
+
+---
+
+## 🏗️ Arquiteturas suportadas (Docker)
+
+A imagem no GHCR é publicada para múltiplas arquiteturas automaticamente via GitHub Actions:
+
+| Plataforma | Hardware |
+|---|---|
+| `linux/amd64` | Servidores x86_64, PCs, VMs |
+| `linux/arm64` | Raspberry Pi 4/5 (64-bit), Apple Silicon (M1/M2/M3) |
+| `linux/arm/v7` | Raspberry Pi 2/3/4 (32-bit), Orange Pi |
+| `linux/riscv64` | VisionFive 2, StarFive, Milk-V Mars |
+
+---
+
+## 🔒 Segurança
+
+- Sem banco de dados — imune a SQL Injection
+- Templates Go com escaping automático de HTML/XSS
+- Upload limitado com `http.MaxBytesReader`
+- Validação de dimensões máximas (8000px)
+- Validação de argumentos antes de passar a processos externos
+- Senhas de PDF exigem mínimo de 8 caracteres
+
+Consulte [SECURITY.md](SECURITY.md) para reportar vulnerabilidades.
+
+---
+
+## 🤝 Contribuindo
+
+Veja [CONTRIBUTING.md](CONTRIBUTING.md) para instruções de como contribuir com o projeto.
+
+---
+
+## 📄 Licença
+
+Distribuído sob a licença MIT. Veja [LICENSE](LICENSE) para mais informações.
