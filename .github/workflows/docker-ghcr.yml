@@ -1,0 +1,81 @@
+name: Build & Push Docker Image to GHCR (Multi-Arch)
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build & Push Multi-Arch Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Necessário para builds multi-arch com QEMU (arm32, arm64, riscv64)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      # Habilita o BuildKit (Buildx) para compilar para múltiplas arquiteturas
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login no GitHub Container Registry usando o token do workflow
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extrai tags e labels inteligentes baseadas no contexto do commit/tag/PR
+      - name: Extract Docker metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag com número semântico quando há um git tag (ex: v1.2.3)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # Tag da branch (ex: main)
+            type=ref,event=branch
+            # Tag do SHA curto do commit
+            type=sha,format=short
+            # Tag "latest" apenas quando é push para main
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # Build multi-arch e push para GHCR em uma única etapa
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          # Plataformas alvo: x86_64, ARM 32-bit (Pi 2/3/4), ARM 64-bit, RISC-V 64-bit
+          platforms: |
+            linux/amd64
+            linux/arm/v7
+            linux/arm64
+            linux/riscv64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache para acelerar builds subsequentes
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
