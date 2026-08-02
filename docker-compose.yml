@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  canivete-da-mata:
+    image: canivete-da-mata:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: canivete-app-1
+    ports:
+      - "7001:7001"
+    restart: unless-stopped
+    environment:
+      - TZ=America/Sao_Paulo
