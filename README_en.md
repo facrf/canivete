@@ -46,7 +46,7 @@ Access at: **http://localhost:7001**
 git clone http://192.168.0.10:3010/facrf/canivete.git
 cd canivete
 docker build -t canivete-da-mata:latest .
-docker run -d -p 7001:7001 canivete-da-mata:latest
+docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
 ```
 
 ---
