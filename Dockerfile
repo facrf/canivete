@@ -22,8 +22,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Instalar pacotes necessários (poppler-utils provê o comando 'pdftoppm' para rasterizar PDF)
-RUN apk --no-cache add ca-certificates tzdata poppler-utils
+# Instalar pacotes necessários (poppler-utils para rasterizar PDF, librsvg para SVG)
+RUN apk --no-cache add ca-certificates tzdata poppler-utils librsvg
 
 # Copiar apenas o binário compilado do Stage 1
 COPY --from=builder /app/canivete .

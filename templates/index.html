@@ -252,6 +252,31 @@
                 </div>
             </article>
 
+            <!-- SVG para Imagem -->
+            <article class="card">
+                <header>🔤 SVG p/ Imagem</header>
+                <div class="content">
+                    <p>Renderize um vetor SVG para PNG puro.</p>
+                    <form id="form-svg-img" action="/process/svg-to-img" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="svg" accept=".svg" required onchange="previewImage(this)">
+                        
+                        <label>
+                            Largura Desejada em Pixels (Opcional):
+                            <input type="number" name="width" placeholder="Ex: 1024" min="1">
+                            <small style="display:block;margin-top:-0.5rem;margin-bottom:1rem;color:var(--muted-color)">Deixe em branco para manter original</small>
+                        </label>
+                        
+                        <button type="submit">Rasterizar para PNG</button>
+                    </form>
+                    <div class="loading"><div class="spinner"></div> Processando...</div>
+                    <div class="result-area" style="display:none; text-align: center; margin-top: 1rem;">
+                        <img class="result-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display:none;">
+                        <a href="#" class="download-btn" role="button" download style="width: 100%; margin-bottom: 0.5rem;">⬇️ Baixar Arquivo</a>
+                        <button type="button" class="secondary close-btn" style="width: 100%;">Fechar</button>
+                    </div>
+                </div>
+            </article>
+
             <!-- PDF para Imagens (Rasterize / Extract) -->
             <article class="card">
                 <header>🖼️ PDF p/ Imagens (Extrair/Converter)</header>

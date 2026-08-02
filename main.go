@@ -46,6 +46,7 @@ func main() {
 	mux.HandleFunc("/process/img-to-pdf", handleImgToPdf)
 	mux.HandleFunc("/process/pdf-to-img", handlePdfToImg)
 	mux.HandleFunc("/process/pdf-rasterize", handlePdfRasterize) // Converte as páginas do PDF para Imagem
+	mux.HandleFunc("/process/svg-to-img", handleSvgToImg) // Renderiza SVG para PNG
 
 	// Iniciar servidor
 	port := "7001"

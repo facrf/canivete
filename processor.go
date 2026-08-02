@@ -365,3 +365,52 @@ func handlePdfRasterize(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename=\"paginas_pdf.zip\"")
 	w.Write(zipBuf.Bytes())
 }
+
+func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	r.ParseMultipartForm(maxUploadSize)
+
+	width := r.FormValue("width") // opcional, ex: 1024
+
+	file, _, err := r.FormFile("svg")
+	if err != nil {
+		http.Error(w, "Erro ao ler arquivo SVG", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	tmpSvg, err := os.CreateTemp("", "upload-*.svg")
+	if err != nil {
+		http.Error(w, "Erro interno ao criar temporário", http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tmpSvg.Name())
+	
+	io.Copy(tmpSvg, file)
+	tmpSvg.Close()
+
+	outName := tmpSvg.Name() + ".png"
+	defer os.Remove(outName)
+
+	args := []string{"-f", "png", "-o", outName}
+	if width != "" && width != "0" {
+		args = append(args, "-w", width)
+	}
+	args = append(args, tmpSvg.Name())
+
+	cmd := exec.Command("rsvg-convert", args...)
+	if err := cmd.Run(); err != nil {
+		http.Error(w, "Erro ao renderizar SVG. Verifique se librsvg está instalado.", http.StatusInternalServerError)
+		return
+	}
+
+	buf, err := os.ReadFile(outName)
+	if err != nil {
+		http.Error(w, "Erro ao ler imagem renderizada", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"vetor-renderizado.png\"")
+	w.Write(buf)
+}
