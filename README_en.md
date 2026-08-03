@@ -1,7 +1,7 @@
 # Jungle Knife 🪓
 
 > Lightweight, offline, and fast web tool for image and PDF processing.  
-> Built in pure Go. Zero external runtime dependencies (except `librsvg` for SVG).
+> Built in Go. The container includes `librsvg` for SVG and `poppler-utils` for PDF rasterization.
 
 ---
 
@@ -67,7 +67,7 @@ docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
 - No database — immune to SQL Injection
 - Go templates with automatic HTML/XSS escaping
 - Upload limited via `http.MaxBytesReader`
-- Maximum dimension validation (8000px)
+- Dimension validation (maximum 8000px and 20 megapixels)
 - PDF passwords require at least 8 characters
 
 ---

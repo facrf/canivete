@@ -475,7 +475,7 @@
 
         </div>
         
-        <br><h3 style="text-align:center; color: var(--primary);">✨ Extras (Novidades)</h3>
+        <br><h3 style="text-align:center; color: var(--primary);">{{ .T "extras_title" }}</h3>
         <div class="grid-cards">
             <!-- EXIF Stripper -->
             <article class="card">
@@ -629,13 +629,14 @@
 
     <!-- O Modal Global foi removido em favor de resultados in-line nas próprias docas (cards) -->
 
-    <script src="/static/cropper.min.js">
-        function changeLang(lang) {
-            document.cookie = "lang=" + lang + ";path=/;max-age=31536000";
-            window.location.href = window.location.pathname + "?v=" + new Date().getTime();
-        }
-</script>
+    <script src="/static/cropper.min.js"></script>
     <script>
+        const uiText = {
+            errorPrefix: {{ .T "error_prefix" }},
+            extractedColors: {{ .T "extracted_colors" }},
+            extractedText: {{ .T "extracted_text" }}
+        };
+
         // Cropper logic
         let cropper;
         const cropInput = document.getElementById('crop-file-input');
@@ -743,11 +744,10 @@
                 
                 if (!response.ok) {
                     const errText = await response.text();
-                    alert("Erro: " + errText);
+                    alert(uiText.errorPrefix + ": " + errText);
                     throw new Error(errText);
                 }
-                
-                                const contentType = response.headers.get("content-type");
+                const contentType = response.headers.get("content-type");
                 
                 if (contentType && contentType.includes("application/json")) {
                     const data = await response.json();
@@ -761,12 +761,7 @@
                     
                     let filename = "resultado";
                     const cd = response.headers.get('Content-Disposition');
-                    if (cd && cd.indexOf('filename=') !== -1) {
-                        const parts = cd.split('filename="');
-                        if (parts.length > 1) {
-                            filename = parts[1].split('"')[0];
-                        }
-                    }
+                    if (cd) filename = filenameFromDisposition(cd, filename);
 
                     showPreview(form, url, blob.type, filename);
                 }
@@ -779,21 +774,53 @@
             }
         }
 
-                function showJsonPreview(form, data) {
+        function filenameFromDisposition(header, fallback) {
+            const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+            if (utf8Match) {
+                try {
+                    return decodeURIComponent(utf8Match[1]);
+                } catch (_) {
+                    return fallback;
+                }
+            }
+
+            const basicMatch = header.match(/filename=(?:"([^"]+)"|([^;]+))/i);
+            if (!basicMatch) return fallback;
+            return (basicMatch[1] || basicMatch[2]).trim();
+        }
+
+        function showJsonPreview(form, data) {
             const container = form.parentNode;
             const resultArea = container.querySelector('.result-area');
             form.style.display = 'none';
             resultArea.style.display = 'block';
-            
+
             if (data.colors) {
-                let html = '<h4>Cores Extraídas:</h4><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:1rem;">';
+                const title = document.createElement('h4');
+                title.textContent = uiText.extractedColors;
+
+                const palette = document.createElement('div');
+                palette.style.cssText = 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:1rem;';
                 data.colors.forEach(c => {
-                    html += `<div style="text-align:center"><div style="width:50px;height:50px;background-color:${c};border-radius:8px;border:1px solid #444;"></div><code>${c}</code></div>`;
+                    if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+
+                    const item = document.createElement('div');
+                    item.style.textAlign = 'center';
+
+                    const swatch = document.createElement('div');
+                    swatch.style.cssText = 'width:50px;height:50px;border-radius:8px;border:1px solid #444;';
+                    swatch.style.backgroundColor = c;
+
+                    const code = document.createElement('code');
+                    code.textContent = c;
+
+                    item.append(swatch, code);
+                    palette.appendChild(item);
                 });
-                html += '</div>';
+
                 let custom = resultArea.querySelector('.custom-result');
                 if(!custom) { custom = document.createElement('div'); custom.className = 'custom-result'; resultArea.insertBefore(custom, resultArea.firstChild); }
-                custom.innerHTML = html;
+                custom.replaceChildren(title, palette);
                 custom.style.display = 'block';
             }
             resultArea.querySelector('.download-btn').style.display = 'none';
@@ -805,11 +832,17 @@
             const resultArea = container.querySelector('.result-area');
             form.style.display = 'none';
             resultArea.style.display = 'block';
-            
-            let html = `<h4>Texto Extraído:</h4><textarea readonly style="width:100%;height:150px;font-family:monospace;resize:none;">${text}</textarea>`;
+
+            const title = document.createElement('h4');
+            title.textContent = uiText.extractedText;
+            const textarea = document.createElement('textarea');
+            textarea.readOnly = true;
+            textarea.style.cssText = 'width:100%;height:150px;font-family:monospace;resize:none;';
+            textarea.value = text;
+
             let custom = resultArea.querySelector('.custom-result');
             if(!custom) { custom = document.createElement('div'); custom.className = 'custom-result'; resultArea.insertBefore(custom, resultArea.firstChild); }
-            custom.innerHTML = html;
+            custom.replaceChildren(title, textarea);
             custom.style.display = 'block';
             
             resultArea.querySelector('.download-btn').style.display = 'none';
@@ -837,6 +870,7 @@
             }
             
             closeBtn.onclick = function() {
+                URL.revokeObjectURL(url);
                 resultArea.style.display = 'none';
                 form.style.display = 'block';
                 const custom = resultArea.querySelector('.custom-result');

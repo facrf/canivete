@@ -1,8 +1,9 @@
 # Stage 1: Builder
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26.5-alpine AS builder
 
-# Instalar dependências para compilação (git é comum para baixar módulos)
-RUN apk add --no-cache git
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG TARGETVARIANT
 
 WORKDIR /app
 
@@ -13,23 +14,33 @@ RUN go mod download
 # Copiar o código fonte restante
 COPY . .
 
-# Compilar o binário de forma totalmente estática e otimizada
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-RUN go build -ldflags="-w -s" -o canivete .
+# Compilar estaticamente para a plataforma solicitada pelo Docker Buildx.
+RUN CGO_ENABLED=0 \
+    GOOS="${TARGETOS}" \
+    GOARCH="${TARGETARCH}" \
+    GOARM="${TARGETVARIANT#v}" \
+    go build -trimpath -ldflags="-w -s" -o canivete .
 
-# Stage 2: Final (Imagem Mínima com poppler-utils para manipulação de PDF)
-FROM alpine:latest
+# Stage 2: imagem mínima com os renderizadores usados pela aplicação.
+FROM alpine:3.24.1
 
 WORKDIR /app
 
-# Instalar pacotes necessários (poppler-utils para rasterizar PDF, librsvg para SVG)
-RUN apk --no-cache add ca-certificates tzdata poppler-utils librsvg
+# Instalar dependências de runtime e criar um usuário sem privilégios.
+RUN apk --no-cache add ca-certificates tzdata poppler-utils rsvg-convert \
+    && addgroup -S canivete \
+    && adduser -S -D -H -G canivete canivete
 
 # Copiar apenas o binário compilado do Stage 1
-COPY --from=builder /app/canivete .
+COPY --from=builder --chown=canivete:canivete /app/canivete .
+
+USER canivete
 
 # Expor a porta 7001
 EXPOSE 7001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:7001/healthz || exit 1
 
 # Executar a aplicação
 CMD ["./canivete"]

@@ -1,7 +1,7 @@
 # Dschungelmesser 🪓
 
 > Offline, leichtes und schnelles Web-Tool zur Bild- und PDF-Verarbeitung.  
-> In reinem Go gebaut. Keine externen Laufzeitabhängigkeiten (außer `librsvg` für SVG).
+> In Go entwickelt. Der Container enthält `librsvg` für SVG und `poppler-utils` für die PDF-Rasterung.
 
 ---
 

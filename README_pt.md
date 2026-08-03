@@ -1,7 +1,7 @@
 # Canivete da Mata 🪓
 
 > Ferramenta web offline, leve e rápida para processamento de imagens e PDFs.  
-> Construída em Go puro. Zero dependências externas em runtime (exceto `librsvg` para SVG).
+> Construída em Go. O contêiner inclui `librsvg` para SVG e `poppler-utils` para rasterização de PDF.
 
 ---
 
@@ -67,7 +67,7 @@ docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
 - Sem banco de dados — imune a SQL Injection
 - Templates Go com escaping automático de HTML/XSS
 - Upload limitado com `http.MaxBytesReader`
-- Validação de dimensões máximas (8000px)
+- Validação de dimensões (máximo de 8000px e 20 megapixels)
 - Senhas de PDF com mínimo de 8 caracteres
 
 ---

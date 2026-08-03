@@ -7,9 +7,40 @@ on:
     branches: [ "main" ]
 
 jobs:
+  quality:
+    name: Tests, vet and vulnerability scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26.5'
+        cache: true
+
+    - name: Verify modules and formatting
+      run: |
+        go mod verify
+        test -z "$(gofmt -l .)"
+
+    - name: Run tests with race detector
+      run: go test -race ./...
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Scan known vulnerabilities
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
   build:
     name: Build Go Binary
     runs-on: ubuntu-latest
+    needs: quality
     strategy:
       matrix:
         include:
@@ -30,7 +61,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.26.5'
 
     - name: Download Go modules
       run: go mod download

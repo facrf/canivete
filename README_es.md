@@ -1,7 +1,7 @@
 # Navaja de la Selva 🪓
 
 > Herramienta web offline, ligera y rápida para procesamiento de imágenes y PDF.  
-> Construida en Go puro. Sin dependencias externas en tiempo de ejecución (excepto `librsvg` para SVG).
+> Construida en Go. El contenedor incluye `librsvg` para SVG y `poppler-utils` para rasterizar PDF.
 
 ---
 

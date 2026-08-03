@@ -103,5 +103,10 @@
   "minify_desc": "Comprima arquivos HTML, CSS, JS e JSON para web.",
   "minify_btn": "Minificar",
 
+  "extras_title": "✨ Extras (Novidades)",
+  "extracted_colors": "Cores Extraídas:",
+  "extracted_text": "Texto Extraído:",
+  "error_prefix": "Erro",
+
   "lang_select": "Idioma"
 }

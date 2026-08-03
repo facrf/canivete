@@ -12,8 +12,6 @@
 #   E adicione o bloco "build:" abaixo.
 # ============================================================
 
-version: '3.8'
-
 services:
   canivete:
     # Imagem pré-compilada do GitHub Container Registry (multi-arch)
@@ -30,18 +28,29 @@ services:
     environment:
       - TZ=America/Sao_Paulo
 
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    read_only: true
+
+    tmpfs:
+      - /tmp:size=512M,mode=1777
+
     # Limites de recursos recomendados (opcional)
     deploy:
       resources:
         limits:
           cpus: '1.0'
-          memory: 256M
+          memory: 768M
         reservations:
           memory: 64M
 
     # Health check para reinicialização automática em caso de falha
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7001/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7001/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3

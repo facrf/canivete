@@ -3,17 +3,22 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/disintegration/imaging"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/css"
 	"github.com/tdewolff/minify/v2/html"
@@ -21,133 +26,142 @@ import (
 	"github.com/tdewolff/minify/v2/json"
 )
 
-// handleImgExifStrip reads an image and re-encodes it to strip EXIF
 func handleImgExifStrip(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao processar form", http.StatusBadRequest)
+	if !parseMultipartForm(w, r, maxUploadSize) {
 		return
 	}
-	file, header, err := r.FormFile("image")
+	defer cleanupMultipartForm(r)
+
+	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	img, format, err := image.Decode(file)
+	img, format, err := decodeImage(file)
 	if err != nil {
-		http.Error(w, "Erro ao decodificar imagem", http.StatusBadRequest)
+		http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"stripped_%s\"", header.Filename))
-	
-	if format == "jpeg" || format == "jpg" {
-		w.Header().Set("Content-Type", "image/jpeg")
-		jpeg.Encode(w, img, &jpeg.Options{Quality: 95})
-	} else {
-		w.Header().Set("Content-Type", "image/png")
-		png.Encode(w, img)
-	}
-}
-
-// handleImgRotate rotates or flips an image
-func handleImgRotate(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao processar form", http.StatusBadRequest)
-		return
-	}
-	file, header, err := r.FormFile("image")
-	if err != nil {
-		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	action := r.FormValue("action")
-	
-	img, format, err := image.Decode(file)
-	if err != nil {
-		http.Error(w, "Erro ao decodificar imagem", http.StatusBadRequest)
-		return
-	}
-
-	var res image.Image
-	switch action {
-	case "rot90":
-		res = imaging.Rotate90(img)
-	case "rot180":
-		res = imaging.Rotate180(img)
-	case "rot270":
-		res = imaging.Rotate270(img)
-	case "fliph":
-		res = imaging.FlipH(img)
-	case "flipv":
-		res = imaging.FlipV(img)
+	switch format {
+	case "jpeg":
+		setDownloadHeaders(w, "image/jpeg", "sem-metadados.jpg")
+		if err := jpeg.Encode(w, img, &jpeg.Options{Quality: 95}); err != nil {
+			log.Printf("Erro ao codificar JPEG sem metadados: %v", err)
+		}
+	case "png":
+		setDownloadHeaders(w, "image/png", "sem-metadados.png")
+		if err := png.Encode(w, img); err != nil {
+			log.Printf("Erro ao codificar PNG sem metadados: %v", err)
+		}
 	default:
-		res = img
-	}
-
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"rotated_%s\"", header.Filename))
-	if format == "jpeg" || format == "jpg" {
-		w.Header().Set("Content-Type", "image/jpeg")
-		jpeg.Encode(w, res, &jpeg.Options{Quality: 95})
-	} else {
-		w.Header().Set("Content-Type", "image/png")
-		png.Encode(w, res)
+		http.Error(w, "A remoção de metadados aceita apenas JPG e PNG", http.StatusBadRequest)
 	}
 }
 
-// handleBase64 process Base64 encode and decode
-func handleBase64(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao processar form", http.StatusBadRequest)
+func handleImgRotate(w http.ResponseWriter, r *http.Request) {
+	if !parseMultipartForm(w, r, maxUploadSize) {
 		return
 	}
-	
-	mode := r.FormValue("mode")
-	if mode == "encode" {
+	defer cleanupMultipartForm(r)
+
+	file, _, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	img, format, err := decodeImage(file)
+	if err != nil {
+		http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
+		return
+	}
+
+	var result image.Image
+	switch r.FormValue("action") {
+	case "rot90":
+		result = imaging.Rotate90(img)
+	case "rot180":
+		result = imaging.Rotate180(img)
+	case "rot270":
+		result = imaging.Rotate270(img)
+	case "fliph":
+		result = imaging.FlipH(img)
+	case "flipv":
+		result = imaging.FlipV(img)
+	default:
+		http.Error(w, "Ação de rotação inválida", http.StatusBadRequest)
+		return
+	}
+
+	if format == "jpeg" {
+		setDownloadHeaders(w, "image/jpeg", "imagem-rotacionada.jpg")
+		if err := jpeg.Encode(w, result, &jpeg.Options{Quality: 95}); err != nil {
+			log.Printf("Erro ao codificar JPEG rotacionado: %v", err)
+		}
+		return
+	}
+
+	setDownloadHeaders(w, "image/png", "imagem-rotacionada.png")
+	if err := png.Encode(w, result); err != nil {
+		log.Printf("Erro ao codificar PNG rotacionado: %v", err)
+	}
+}
+
+func handleBase64(w http.ResponseWriter, r *http.Request) {
+	if !parseMultipartForm(w, r, maxUploadSize) {
+		return
+	}
+	defer cleanupMultipartForm(r)
+
+	switch r.FormValue("mode") {
+	case "encode":
 		file, _, err := r.FormFile("file")
 		if err != nil {
 			http.Error(w, "Arquivo não enviado", http.StatusBadRequest)
 			return
 		}
 		defer file.Close()
-		
-		data, err := io.ReadAll(file)
-		if err != nil {
-			http.Error(w, "Erro ao ler arquivo", http.StatusInternalServerError)
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		encoder := base64.NewEncoder(base64.StdEncoding, w)
+		if _, err := io.Copy(encoder, file); err != nil {
+			log.Printf("Erro ao codificar Base64: %v", err)
+			_ = encoder.Close()
 			return
 		}
-		encoded := base64.StdEncoding.EncodeToString(data)
-		
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte(encoded))
-		
-	} else if mode == "decode" {
-		text := r.FormValue("text")
-		decoded, err := base64.StdEncoding.DecodeString(text)
+		if err := encoder.Close(); err != nil {
+			log.Printf("Erro ao finalizar Base64: %v", err)
+		}
+	case "decode":
+		encoded := strings.TrimSpace(r.FormValue("text"))
+		if encoded == "" {
+			http.Error(w, "Texto Base64 vazio", http.StatusBadRequest)
+			return
+		}
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
 			http.Error(w, "Texto Base64 inválido", http.StatusBadRequest)
 			return
 		}
-		
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", "attachment; filename=\"decoded.bin\"")
-		w.Write(decoded)
+
+		setDownloadHeaders(w, "application/octet-stream", "decoded.bin")
+		// #nosec G705 -- resposta binária é attachment, application/octet-stream e nosniff.
+		_, _ = w.Write(decoded)
+	default:
+		http.Error(w, "Modo Base64 inválido", http.StatusBadRequest)
 	}
 }
 
-// handleMinify minifies code
 func handleMinify(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao processar form", http.StatusBadRequest)
+	if !parseMultipartForm(w, r, maxUploadSize) {
 		return
 	}
+	defer cleanupMultipartForm(r)
+
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "Arquivo não enviado", http.StatusBadRequest)
@@ -155,38 +169,52 @@ func handleMinify(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	ext := filepath.Ext(header.Filename)
-	lang := r.FormValue("lang")
-	if lang == "" {
-		switch ext {
-		case ".html": lang = "text/html"
-		case ".css": lang = "text/css"
-		case ".js": lang = "application/javascript"
-		case ".json": lang = "application/json"
+	language := r.FormValue("lang")
+	if language == "" {
+		switch strings.ToLower(filepath.Ext(header.Filename)) {
+		case ".html", ".htm":
+			language = "text/html"
+		case ".css":
+			language = "text/css"
+		case ".js", ".mjs":
+			language = "application/javascript"
+		case ".json":
+			language = "application/json"
 		}
 	}
-	
-	m := minify.New()
-	m.AddFunc("text/html", html.Minify)
-	m.AddFunc("text/css", css.Minify)
-	m.AddFunc("application/javascript", js.Minify)
-	m.AddFunc("application/json", json.Minify)
-	
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"minified_%s\"", header.Filename))
-	w.Header().Set("Content-Type", "text/plain")
-	
-	if err := m.Minify(lang, w, file); err != nil {
-		http.Error(w, "Erro ao minificar. Suporte apenas a HTML, CSS, JS e JSON.", http.StatusInternalServerError)
-	}
-}
 
-// handlePdfRotate rotates PDF pages
-func handlePdfRotate(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(50 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao ler form", http.StatusBadRequest)
+	allowed := map[string]bool{
+		"text/html":              true,
+		"text/css":               true,
+		"application/javascript": true,
+		"application/json":       true,
+	}
+	if !allowed[language] {
+		http.Error(w, "Formato não suportado; use HTML, CSS, JS ou JSON", http.StatusBadRequest)
 		return
 	}
+
+	minifier := minify.New()
+	minifier.AddFunc("text/html", html.Minify)
+	minifier.AddFunc("text/css", css.Minify)
+	minifier.AddFunc("application/javascript", js.Minify)
+	minifier.AddFunc("application/json", json.Minify)
+
+	var output bytes.Buffer
+	if err := minifier.Minify(language, &output, file); err != nil {
+		http.Error(w, "Arquivo inválido para o formato selecionado", http.StatusBadRequest)
+		return
+	}
+
+	setDownloadHeaders(w, "text/plain; charset=utf-8", "minified_"+safeFilename(header.Filename))
+	_, _ = output.WriteTo(w)
+}
+
+func handlePdfRotate(w http.ResponseWriter, r *http.Request) {
+	if !parseMultipartForm(w, r, maxPDFUploadSize) {
+		return
+	}
+	defer cleanupMultipartForm(r)
 
 	file, _, err := r.FormFile("pdf")
 	if err != nil {
@@ -194,115 +222,199 @@ func handlePdfRotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	
-	pages := r.FormValue("pages") // Ex: "1,2,3" ou vazio para todas
-	degreesStr := r.FormValue("degrees")
-	degrees, _ := strconv.Atoi(degreesStr)
-	if degrees == 0 {
-		degrees = 90
+
+	degrees, err := strconv.Atoi(r.FormValue("degrees"))
+	if err != nil || (degrees != 90 && degrees != 180 && degrees != 270) {
+		http.Error(w, "Rotação deve ser 90, 180 ou 270 graus", http.StatusBadRequest)
+		return
 	}
-	
+
+	pages := strings.TrimSpace(r.FormValue("pages"))
+	if len(pages) > 200 {
+		http.Error(w, "Seleção de páginas muito longa", http.StatusBadRequest)
+		return
+	}
 	var pageSelection []string
 	if pages != "" {
 		pageSelection = []string{pages}
 	}
-	
-	var buf bytes.Buffer
-	err = api.Rotate(file, &buf, degrees, pageSelection, nil)
+
+	output, err := os.CreateTemp("", "canivete-rotated-*.pdf")
 	if err != nil {
-		http.Error(w, "Erro ao girar PDF: "+err.Error(), http.StatusInternalServerError)
+		internalError(w, "Erro ao preparar PDF de saída", err)
 		return
 	}
-	
-	w.Header().Set("Content-Disposition", "attachment; filename=\"rotated.pdf\"")
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Write(buf.Bytes())
+	defer func() {
+		_ = output.Close()
+		_ = os.Remove(output.Name())
+	}()
+
+	if err := api.Rotate(file, output, degrees, pageSelection, nil); err != nil {
+		log.Printf("Erro ao girar PDF: %v", err)
+		http.Error(w, "PDF ou seleção de páginas inválida", http.StatusBadRequest)
+		return
+	}
+	if err := serveDownloadFile(w, output, "application/pdf", "rotated.pdf"); err != nil {
+		log.Printf("Erro ao enviar PDF rotacionado: %v", err)
+	}
 }
 
-// writeICOHeader generates ICO
-func writeICOHeader(w io.Writer, pngs [][]byte) error {
-	// ICO Header
-	w.Write([]byte{0, 0, 1, 0})
-	count := len(pngs)
-	w.Write([]byte{byte(count), 0})
-	
-	offset := 6 + (16 * count)
-	
-	for _, p := range pngs {
-		cfg, err := png.DecodeConfig(bytes.NewReader(p))
-		if err != nil { return err }
-		w.Write([]byte{byte(cfg.Width), byte(cfg.Height), 0, 0, 1, 0, 32, 0})
-		size := len(p)
-		w.Write([]byte{byte(size), byte(size >> 8), byte(size >> 16), byte(size >> 24)})
-		w.Write([]byte{byte(offset), byte(offset >> 8), byte(offset >> 16), byte(offset >> 24)})
-		offset += size
+func writeICO(w io.Writer, images [][]byte) error {
+	if len(images) == 0 || len(images) > int(^uint16(0)) {
+		return fmt.Errorf("quantidade inválida de imagens no ICO: %d", len(images))
 	}
-	for _, p := range pngs {
-		w.Write(p)
+	headerSize := 6 + 16*len(images)
+	if uint64(headerSize) > uint64(^uint32(0)) {
+		return fmt.Errorf("cabeçalho ICO excede o limite de 32 bits")
+	}
+
+	if err := binary.Write(w, binary.LittleEndian, uint16(0)); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint16(1)); err != nil {
+		return err
+	}
+	// #nosec G115 -- len(images) foi validado contra o limite de uint16 acima.
+	if err := binary.Write(w, binary.LittleEndian, uint16(len(images))); err != nil {
+		return err
+	}
+
+	// #nosec G115 -- headerSize foi validado contra o limite de uint32 acima.
+	offset := uint32(headerSize)
+	for _, data := range images {
+		config, err := png.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		if config.Width < 1 || config.Width > 256 || config.Height < 1 || config.Height > 256 {
+			return fmt.Errorf("dimensão inválida no ICO: %dx%d", config.Width, config.Height)
+		}
+		if uint64(len(data)) > uint64(^uint32(0)) {
+			return fmt.Errorf("imagem interna do ICO excede o limite de 32 bits")
+		}
+		// O formato ICO representa a dimensão 256 pelo byte zero.
+		// #nosec G115 -- dimensões validadas no intervalo 1..256.
+		entry := []byte{byte(config.Width % 256), byte(config.Height % 256), 0, 0}
+		if _, err := w.Write(entry); err != nil {
+			return err
+		}
+		for _, value := range []uint16{1, 32} {
+			if err := binary.Write(w, binary.LittleEndian, value); err != nil {
+				return err
+			}
+		}
+		// #nosec G115 -- tamanho validado contra o limite de uint32 acima.
+		dataSize := uint32(len(data))
+		if err := binary.Write(w, binary.LittleEndian, dataSize); err != nil {
+			return err
+		}
+		if err := binary.Write(w, binary.LittleEndian, offset); err != nil {
+			return err
+		}
+		if uint64(offset)+uint64(dataSize) > uint64(^uint32(0)) {
+			return fmt.Errorf("arquivo ICO excede o limite de 32 bits")
+		}
+		offset += dataSize
+	}
+
+	for _, data := range images {
+		if _, err := w.Write(data); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// handleImgToIco
 func handleImgToIco(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		http.Error(w, "Erro form", http.StatusBadRequest)
+	if !parseMultipartForm(w, r, maxUploadSize) {
 		return
 	}
+	defer cleanupMultipartForm(r)
+
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Imagem vazia", http.StatusBadRequest)
+		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
-	
-	img, _, err := image.Decode(file)
+
+	img, _, err := decodeImage(file)
 	if err != nil {
-		http.Error(w, "Erro decode", http.StatusBadRequest)
+		http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
 		return
 	}
-	
+
 	sizes := []int{16, 32, 48}
-	var pngs [][]byte
-	for _, s := range sizes {
-		resized := imaging.Resize(img, s, s, imaging.Lanczos)
-		var buf bytes.Buffer
-		png.Encode(&buf, resized)
-		pngs = append(pngs, buf.Bytes())
+	pngImages := make([][]byte, 0, len(sizes))
+	for _, size := range sizes {
+		resized := imaging.Fill(img, size, size, imaging.Center, imaging.Lanczos)
+		var output bytes.Buffer
+		if err := png.Encode(&output, resized); err != nil {
+			internalError(w, "Erro ao gerar ícone", err)
+			return
+		}
+		pngImages = append(pngImages, output.Bytes())
 	}
-	
-	w.Header().Set("Content-Disposition", "attachment; filename=\"favicon.ico\"")
-	w.Header().Set("Content-Type", "image/x-icon")
-	writeICOHeader(w, pngs)
+
+	var ico bytes.Buffer
+	if err := writeICO(&ico, pngImages); err != nil {
+		internalError(w, "Erro ao gerar ícone", err)
+		return
+	}
+	setDownloadHeaders(w, "image/x-icon", "favicon.ico")
+	_, _ = ico.WriteTo(w)
 }
 
-// handlePdfWatermark
 func handlePdfWatermark(w http.ResponseWriter, r *http.Request) {
-    err := r.ParseMultipartForm(50 << 20)
-	if err != nil {
-		http.Error(w, "Erro ao ler form", http.StatusBadRequest)
+	if !parseMultipartForm(w, r, maxPDFUploadSize) {
 		return
 	}
-    file, _, err := r.FormFile("pdf")
+	defer cleanupMultipartForm(r)
+
+	file, _, err := r.FormFile("pdf")
 	if err != nil {
 		http.Error(w, "PDF não enviado", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
-    
-    text := r.FormValue("text")
-    if text == "" { text = "Watermark" }
-    
-    wm, _ := api.TextWatermark(text, "font:Helvetica, points:48, rot:45, scale:1.0 abs, op:0.3", true, false, 1) // 1 = POINTS
-    var buf bytes.Buffer
-    err = api.AddWatermarks(file, &buf, nil, wm, nil)
-    if err != nil {
-		http.Error(w, "Erro ao adicionar marca d'água: "+err.Error(), http.StatusInternalServerError)
+
+	watermarkText := strings.TrimSpace(r.FormValue("text"))
+	if watermarkText == "" {
+		watermarkText = "Watermark"
+	}
+	if len([]rune(watermarkText)) > 200 {
+		http.Error(w, "Texto da marca d'água deve ter no máximo 200 caracteres", http.StatusBadRequest)
 		return
 	}
-    
-    w.Header().Set("Content-Disposition", "attachment; filename=\"watermarked.pdf\"")
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Write(buf.Bytes())
+
+	watermark, err := api.TextWatermark(
+		watermarkText,
+		"font:Helvetica, points:48, rot:45, scale:1.0 abs, op:0.3",
+		true,
+		false,
+		types.POINTS,
+	)
+	if err != nil {
+		http.Error(w, "Texto de marca d'água inválido", http.StatusBadRequest)
+		return
+	}
+
+	output, err := os.CreateTemp("", "canivete-watermarked-*.pdf")
+	if err != nil {
+		internalError(w, "Erro ao preparar PDF de saída", err)
+		return
+	}
+	defer func() {
+		_ = output.Close()
+		_ = os.Remove(output.Name())
+	}()
+
+	if err := api.AddWatermarks(file, output, nil, watermark, nil); err != nil {
+		log.Printf("Erro ao adicionar marca d'água: %v", err)
+		http.Error(w, "PDF inválido ou não suportado", http.StatusBadRequest)
+		return
+	}
+	if err := serveDownloadFile(w, output, "application/pdf", "watermarked.pdf"); err != nil {
+		log.Printf("Erro ao enviar PDF com marca d'água: %v", err)
+	}
 }

@@ -1,7 +1,7 @@
 # Couteau de la Jungle 🪓
 
 > Outil web hors ligne, léger et rapide pour le traitement d'images et de PDF.  
-> Construit en Go pur. Aucune dépendance externe au runtime (sauf `librsvg` pour SVG).
+> Construit en Go. Le conteneur inclut `librsvg` pour SVG et `poppler-utils` pour la pixellisation des PDF.
 
 ---
 

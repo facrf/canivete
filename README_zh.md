@@ -1,7 +1,7 @@
 # 丛林刀 🪓
 
 > 离线、轻量级、快速的图像和 PDF 处理 Web 工具。  
-> 用纯 Go 编写。无外部运行时依赖（SVG 转换除外需要 `librsvg`）。
+> 使用 Go 编写。容器包含用于 SVG 的 `librsvg` 和用于 PDF 栅格化的 `poppler-utils`。
 
 ---
 

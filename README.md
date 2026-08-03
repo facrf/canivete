@@ -1,7 +1,7 @@
 # Canivete da Mata 🪓
 
 > Ferramenta web offline, leve e rápida para processamento de imagens e PDFs.  
-> Construída em Go puro. Zero dependências externas em runtime (exceto `librsvg` para SVG).
+> Construída em Go. O contêiner inclui `librsvg` para SVG e `poppler-utils` para rasterização de PDF.
 
 [![Build & Push GHCR](https://github.com/facrf/canivete/actions/workflows/docker-ghcr.yml/badge.svg)](https://github.com/facrf/canivete/actions/workflows/docker-ghcr.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -82,7 +82,7 @@ A imagem no GHCR é publicada para múltiplas arquiteturas automaticamente via G
 - Sem banco de dados — imune a SQL Injection
 - Templates Go com escaping automático de HTML/XSS
 - Upload limitado com `http.MaxBytesReader`
-- Validação de dimensões máximas (8000px)
+- Validação de dimensões (máximo de 8000px e 20 megapixels)
 - Validação de argumentos antes de passar a processos externos
 - Senhas de PDF exigem mínimo de 8 caracteres
 
