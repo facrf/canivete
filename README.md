@@ -34,6 +34,17 @@
 
 ---
 
+## ⚙️ Configuração (Variáveis de Ambiente)
+
+O sistema pode ser customizado através das seguintes variáveis de ambiente:
+
+| Variável | Padrão | Descrição |
+|----------|---------|-----------|
+| `PORT` | `7001` | Porta em que o servidor web irá rodar. |
+| `MAX_CONCURRENT_JOBS` | `100` | Limite de processamentos simultâneos (Rate Limiter) para evitar sobrecarga do servidor. |
+
+---
+
 ## 🚀 Deploy Rápido
 
 ### Docker (linha de comando)

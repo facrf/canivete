@@ -140,3 +140,17 @@ func serveDownloadFile(w http.ResponseWriter, file *os.File, contentType, filena
 	_, err := io.Copy(w, file)
 	return err
 }
+
+func saveToTempFile(src io.Reader, prefix string) (string, error) {
+	tmp, err := os.CreateTemp("", prefix)
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+	
+	if _, err := io.Copy(tmp, src); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	return tmp.Name(), nil
+}

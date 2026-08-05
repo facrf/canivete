@@ -120,7 +120,7 @@ func handlePdfSplit(w http.ResponseWriter, r *http.Request) {
 
 	file, _, err := r.FormFile("pdf")
 	if err != nil {
-		http.Error(w, "Erro", http.StatusBadRequest)
+		http.Error(w, "Arquivo PDF ausente ou inválido na requisição", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -346,7 +346,7 @@ func handleImgCompress(w http.ResponseWriter, r *http.Request) {
 
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Erro", http.StatusBadRequest)
+		http.Error(w, "Arquivo de imagem ausente ou inválido na requisição", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -402,7 +402,7 @@ func handleQrRead(w http.ResponseWriter, r *http.Request) {
 
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Erro", http.StatusBadRequest)
+		http.Error(w, "Arquivo de imagem ausente ou inválido na requisição", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -435,7 +435,7 @@ func handleImgPalette(w http.ResponseWriter, r *http.Request) {
 
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Erro", http.StatusBadRequest)
+		http.Error(w, "Arquivo de imagem ausente ou inválido na requisição", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()

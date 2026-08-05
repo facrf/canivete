@@ -24,6 +24,17 @@ A interface está disponível em 7 idiomas, selecionáveis pela bandeirinha no c
 
 ---
 
+## ⚙️ Configuração (Variáveis de Ambiente)
+
+O sistema pode ser configurado através das seguintes variáveis de ambiente:
+
+| Variável | Padrão | Descrição |
+|----------|---------|-----------|
+| `PORT` | `7001` | Porta em que o servidor web irá rodar. |
+| `MAX_CONCURRENT_JOBS` | `100` | Limite de processamentos simultâneos (Rate Limiter) para evitar sobrecarga do servidor. |
+
+---
+
 ## 🚀 Deploy
 
 ### Docker (linha de comando)

@@ -93,7 +93,13 @@ func newHandler() http.Handler {
 	processingMux.HandleFunc("POST /process/pdf-watermark", handlePdfWatermark)
 	processingMux.HandleFunc("POST /process/base64", handleBase64)
 	processingMux.HandleFunc("POST /process/minify", handleMinify)
-	mux.Handle("/process/", limitConcurrentJobs(processingMux, 2))
+
+	maxJobsStr := os.Getenv("MAX_CONCURRENT_JOBS")
+	maxJobs, err := strconv.Atoi(maxJobsStr)
+	if err != nil || maxJobs < 1 {
+		maxJobs = 100
+	}
+	mux.Handle("/process/", limitConcurrentJobs(processingMux, maxJobs))
 
 	return recoverMiddleware(securityHeaders(mux))
 }
