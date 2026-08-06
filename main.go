@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -166,7 +165,7 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	shutdownContext, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	go func() {
 		<-shutdownContext.Done()

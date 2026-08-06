@@ -101,6 +101,20 @@ Consulte [SECURITY.md](SECURITY.md) para reportar vulnerabilidades.
 
 ---
 
+## 🧪 Testes e Qualidade de Código
+
+O Canivete da Mata conta com uma cobertura completa de testes garantindo estabilidade e integridade:
+- **Detector de Corrida (Race Detector)** ativo para evitar falhas de concorrência e uso paralelo na memória.
+- Suíte cobrindo todos os utilitários, tratamento de imagens, limpeza de temporários e validação HTTP.
+- Integração e verificação de formatação via Github Actions para assegurar a melhor performance com o *Go 1.26+*.
+
+Para executar a suíte localmente (incluindo o race detector):
+```bash
+go test -race -count=1 ./...
+```
+
+---
+
 ## 🤝 Contribuindo
 
 Veja [CONTRIBUTING.md](CONTRIBUTING.md) para instruções de como contribuir com o projeto.

@@ -28,7 +28,7 @@ import (
 //
 // We fall back to the alternate color space and if there is none to whatever color space makes sense.
 
-//ICC profiles use big endian always.
+// ICC profiles use big endian always.
 type iccProfile struct {
 	b          []byte
 	rX, rY, rZ float32 // redMatrixColumn; the first column in the matrix, which is used in matrix/TRC transforms.

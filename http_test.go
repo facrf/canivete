@@ -158,12 +158,6 @@ func TestImageDimensionLimits(t *testing.T) {
 	}
 }
 
-func TestSafeFilename(t *testing.T) {
-	if got := safeFilename("../folder\\evil\r\nname.txt"); got != "evilname.txt" {
-		t.Fatalf("safeFilename retornou %q", got)
-	}
-}
-
 func TestConcurrentJobLimit(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})

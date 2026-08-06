@@ -147,7 +147,7 @@ func saveToTempFile(src io.Reader, prefix string) (string, error) {
 		return "", err
 	}
 	defer tmp.Close()
-	
+
 	if _, err := io.Copy(tmp, src); err != nil {
 		os.Remove(tmp.Name())
 		return "", err

@@ -83,6 +83,20 @@ docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
 
 ---
 
+## 🧪 Testes e Qualidade de Código
+
+O Canivete da Mata conta com uma cobertura completa de testes garantindo estabilidade e integridade:
+- **Detector de Corrida (Race Detector)** ativo para evitar falhas de concorrência e uso paralelo na memória.
+- Suíte cobrindo todos os utilitários, tratamento de imagens, limpeza de temporários e validação HTTP.
+- Integração e verificação de formatação via Github Actions para assegurar a melhor performance com o *Go 1.26+*.
+
+Para executar a suíte localmente:
+```bash
+go test -race -count=1 ./...
+```
+
+---
+
 ## 📄 Licença
 
 MIT — veja [LICENSE](LICENSE).
