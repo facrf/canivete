@@ -180,7 +180,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 			// Entropy data starts. Fast-scan until we hit a marker that ends it.
 			for {
 				chunk, err := br.ReadSlice(0xFF)
-				
+
 				if err == bufio.ErrBufferFull {
 					// 0xFF not found in this buffer segment
 					if _, wErr := w.Write(chunk); wErr != nil {
@@ -192,7 +192,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 				}
 
 				hasFF := len(chunk) > 0 && chunk[len(chunk)-1] == 0xFF
-				
+
 				// Write everything EXCEPT the 0xFF (if present)
 				if hasFF {
 					if _, wErr := w.Write(chunk[:len(chunk)-1]); wErr != nil {
