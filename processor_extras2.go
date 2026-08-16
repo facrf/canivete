@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	"github.com/disintegration/imaging"
-	"github.com/facrf/canivete/imagemeta"
+	"canivete/imagemeta"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 	"github.com/tdewolff/minify/v2"
