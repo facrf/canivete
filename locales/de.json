@@ -64,10 +64,9 @@
   "pdf_prot_desc": "Fügen Sie Ihrer PDF ein Passwort hinzu, um das Dokument zu schützen.",
   "pass_ph": "Starkes Passwort eingeben",
   "protect_btn": "Mit Passwort schützen",
-
   "exif_title": "🕵️ Metadaten Entfernen",
-  "exif_desc": "Entfernen Sie EXIF-Daten (GPS, Datum und Kamera) aus JPG/PNG-Fotos zum Schutz Ihrer Privatsphäre.",
-  "exif_btn": "Foto Bereinigen",
+  "exif_desc": "Entfernen Sie EXIF-Daten aus JPG-, PNG- oder WebP-Fotos für mehr Privatsphäre.",
+  "exif_btn": "Foto(s) Bereinigen",
   "rotate_title": "🔄 Bild Drehen und Spiegeln",
   "rotate_desc": "Drehen Sie ein Bild in verschiedene Winkel oder spiegeln Sie es horizontal oder vertikal.",
   "rotate_90": "Um 90° Drehen",
@@ -100,6 +99,5 @@
   "extracted_colors": "Extrahierte Farben:",
   "extracted_text": "Extrahierter Text:",
   "error_prefix": "Fehler",
-
   "lang_select": "Sprache"
 }

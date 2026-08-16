@@ -64,10 +64,9 @@
   "pdf_prot_desc": "Agrega una contraseña a tu PDF para proteger el documento.",
   "pass_ph": "Escribe una Contraseña Segura",
   "protect_btn": "Proteger con Contraseña",
-
   "exif_title": "🕵️ Eliminar Metadatos",
-  "exif_desc": "Elimina datos EXIF (GPS, fecha y cámara) de fotos JPG/PNG para proteger tu privacidad.",
-  "exif_btn": "Limpiar Foto",
+  "exif_desc": "Elimine los datos EXIF de fotos JPG, PNG o WebP para mayor privacidad.",
+  "exif_btn": "Limpiar Foto(s)",
   "rotate_title": "🔄 Girar y Voltear Imagen",
   "rotate_desc": "Gira una imagen en varios ángulos o voltéala horizontal o verticalmente.",
   "rotate_90": "Girar 90°",
@@ -100,6 +99,5 @@
   "extracted_colors": "Colores Extraídos:",
   "extracted_text": "Texto Extraído:",
   "error_prefix": "Error",
-
   "lang_select": "Idioma"
 }

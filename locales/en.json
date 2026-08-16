@@ -64,10 +64,9 @@
   "pdf_prot_desc": "Add a password to your PDF to protect the document.",
   "pass_ph": "Enter Strong Password",
   "protect_btn": "Protect with Password",
-
   "exif_title": "🕵️ Remove Metadata",
-  "exif_desc": "Remove EXIF data (GPS, date, and camera) from JPG/PNG photos for better privacy.",
-  "exif_btn": "Clean Photo",
+  "exif_desc": "Remove EXIF data (GPS, date, and camera) from JPG, PNG, or WebP photos for better privacy.",
+  "exif_btn": "Clean Photo(s)",
   "rotate_title": "🔄 Rotate & Flip Image",
   "rotate_desc": "Rotate an image to different angles or flip it horizontally or vertically.",
   "rotate_90": "Rotate 90°",
@@ -100,6 +99,5 @@
   "extracted_colors": "Extracted Colors:",
   "extracted_text": "Extracted Text:",
   "error_prefix": "Error",
-
   "lang_select": "Language"
 }

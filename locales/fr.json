@@ -64,9 +64,8 @@
   "pdf_prot_desc": "Ajoutez un mot de passe à votre PDF pour protéger le document.",
   "pass_ph": "Entrez un mot de passe fort",
   "protect_btn": "Protéger avec mot de passe",
-
   "exif_title": "🕵️ Supprimer les Métadonnées",
-  "exif_desc": "Supprimez les données EXIF (GPS, date et appareil) des photos JPG/PNG pour préserver votre vie privée.",
+  "exif_desc": "Supprimez les données EXIF des photos JPG, PNG ou WebP pour plus de confidentialité.",
   "exif_btn": "Nettoyer la Photo",
   "rotate_title": "🔄 Pivoter et Retourner l'Image",
   "rotate_desc": "Faites pivoter une image ou retournez-la horizontalement ou verticalement.",
@@ -100,6 +99,5 @@
   "extracted_colors": "Couleurs Extraites :",
   "extracted_text": "Texte Extrait :",
   "error_prefix": "Erreur",
-
   "lang_select": "Langue"
 }

@@ -64,9 +64,8 @@
   "pdf_prot_desc": "为您的 PDF 添加密码以保护文档。",
   "pass_ph": "输入强密码",
   "protect_btn": "使用密码保护",
-
   "exif_title": "🕵️ 删除元数据",
-  "exif_desc": "删除 JPG/PNG 照片中的 EXIF 数据（GPS、日期和相机信息），保护隐私。",
+  "exif_desc": "从 JPG、PNG 或 WebP 照片中删除 EXIF 数据以更好地保护隐私。",
   "exif_btn": "清理照片",
   "rotate_title": "🔄 旋转和翻转图像",
   "rotate_desc": "将图像旋转到不同角度，或进行水平和垂直翻转。",
@@ -100,6 +99,5 @@
   "extracted_colors": "提取的颜色：",
   "extracted_text": "提取的文本：",
   "error_prefix": "错误",
-
   "lang_select": "语言"
 }

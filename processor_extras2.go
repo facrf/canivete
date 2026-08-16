@@ -36,14 +36,27 @@ func handleImgExifStrip(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanupMultipartForm(r)
 
-	if files := r.MultipartForm.File["images"]; len(files) > 0 {
+	var files []*multipart.FileHeader
+	if f := r.MultipartForm.File["images"]; len(f) > 0 {
+		files = f
+	} else if f := r.MultipartForm.File["image"]; len(f) > 0 {
+		files = f
+	}
+
+	if len(files) == 0 {
+		http.Error(w, "Nenhuma imagem enviada", http.StatusBadRequest)
+		return
+	}
+
+	if len(files) > 1 {
 		handleBatchImgExifStrip(w, r, files)
 		return
 	}
 
-	file, header, err := r.FormFile("image")
+	fileHeader := files[0]
+	file, err := fileHeader.Open()
 	if err != nil {
-		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
+		http.Error(w, "Erro ao abrir imagem", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -81,7 +94,7 @@ func handleImgExifStrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	originalName := strings.TrimSuffix(filepath.Base(header.Filename), filepath.Ext(header.Filename))
+	originalName := strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename))
 	setDownloadHeaders(w, contentType, fmt.Sprintf("%s-anon.%s", safeFilename(originalName), ext))
 
 	if _, err := io.Copy(w, tmpOutput); err != nil {
