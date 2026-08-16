@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
@@ -10,13 +11,16 @@ import (
 	"image/png"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/disintegration/imaging"
+	"github.com/facrf/canivete/imagemeta"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 	"github.com/tdewolff/minify/v2"
@@ -27,37 +31,165 @@ import (
 )
 
 func handleImgExifStrip(w http.ResponseWriter, r *http.Request) {
-	if !parseMultipartForm(w, r, maxUploadSize) {
+	if !parseMultipartForm(w, r, maxBatchUploadSize) {
 		return
 	}
 	defer cleanupMultipartForm(r)
 
-	file, _, err := r.FormFile("image")
+	if files := r.MultipartForm.File["images"]; len(files) > 0 {
+		handleBatchImgExifStrip(w, r, files)
+		return
+	}
+
+	file, header, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Imagem não enviada", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	img, format, err := decodeImage(file)
+	tmpOutput, err := os.CreateTemp("", "stripped-*.tmp")
 	if err != nil {
-		http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
+		internalError(w, "Erro temporário", err)
+		return
+	}
+	defer os.Remove(tmpOutput.Name())
+	defer tmpOutput.Close()
+
+	report, err := imagemeta.StripAISignatures(r.Context(), file, tmpOutput, "")
+	if err != nil {
+		log.Printf("Erro ao remover metadados: %v", err)
+		http.Error(w, "Erro ao processar imagem, certifique-se de ser PNG, JPG ou WEBP válido", http.StatusBadRequest)
 		return
 	}
 
-	switch format {
-	case "jpeg":
-		setDownloadHeaders(w, "image/jpeg", "sem-metadados.jpg")
-		if err := jpeg.Encode(w, img, &jpeg.Options{Quality: 95}); err != nil {
-			log.Printf("Erro ao codificar JPEG sem metadados: %v", err)
-		}
+	var ext, contentType string
+	switch report.Format {
+	case "jpeg", "jpg":
+		ext, contentType = "jpg", "image/jpeg"
 	case "png":
-		setDownloadHeaders(w, "image/png", "sem-metadados.png")
-		if err := png.Encode(w, img); err != nil {
-			log.Printf("Erro ao codificar PNG sem metadados: %v", err)
-		}
+		ext, contentType = "png", "image/png"
+	case "webp":
+		ext, contentType = "webp", "image/webp"
 	default:
-		http.Error(w, "A remoção de metadados aceita apenas JPG e PNG", http.StatusBadRequest)
+		http.Error(w, "Formato não suportado para anonimização", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := tmpOutput.Seek(0, io.SeekStart); err != nil {
+		internalError(w, "Erro ao preparar download", err)
+		return
+	}
+
+	originalName := strings.TrimSuffix(filepath.Base(header.Filename), filepath.Ext(header.Filename))
+	setDownloadHeaders(w, contentType, fmt.Sprintf("%s-anon.%s", safeFilename(originalName), ext))
+
+	if _, err := io.Copy(w, tmpOutput); err != nil {
+		log.Printf("Erro ao enviar imagem anonimizada: %v", err)
+	}
+}
+
+func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*multipart.FileHeader) {
+	if len(files) > maxBatchFiles {
+		http.Error(w, "Quantidade máxima de imagens excedida", http.StatusBadRequest)
+		return
+	}
+
+	zipFile, err := os.CreateTemp("", "anon-images-*.zip")
+	if err != nil {
+		internalError(w, "Erro ao preparar arquivo ZIP", err)
+		return
+	}
+	defer os.Remove(zipFile.Name())
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	var zipMutex sync.Mutex
+	var errGroup error
+
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+
+	var errorsLog []string
+
+	for _, fileHeader := range files {
+		wg.Add(1)
+		go func(fh *multipart.FileHeader) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			file, err := fh.Open()
+			if err != nil {
+				zipMutex.Lock()
+				errorsLog = append(errorsLog, fmt.Sprintf("%s: Erro ao abrir imagem", fh.Filename))
+				zipMutex.Unlock()
+				return
+			}
+			defer file.Close()
+
+			var buf bytes.Buffer
+			report, err := imagemeta.StripAISignatures(r.Context(), file, &buf, "")
+			if err != nil {
+				zipMutex.Lock()
+				errorsLog = append(errorsLog, fmt.Sprintf("%s: Erro ao remover metadados (%v)", fh.Filename, err))
+				zipMutex.Unlock()
+				return
+			}
+
+			var ext string
+			switch report.Format {
+			case "jpeg", "jpg":
+				ext = "jpg"
+			case "png":
+				ext = "png"
+			case "webp":
+				ext = "webp"
+			default:
+				zipMutex.Lock()
+				errorsLog = append(errorsLog, fmt.Sprintf("%s: Formato não suportado (%s)", fh.Filename, report.Format))
+				zipMutex.Unlock()
+				return
+			}
+
+			zipMutex.Lock()
+			defer zipMutex.Unlock()
+
+			base := strings.TrimSuffix(filepath.Base(fh.Filename), filepath.Ext(fh.Filename))
+			safe := safeFilename(base)
+			if safe == "" {
+				safe = "imagem"
+			}
+			fw, err := zipWriter.Create(fmt.Sprintf("%s-anon.%s", safe, ext))
+			if err != nil {
+				errGroup = err
+				return
+			}
+			_, _ = io.Copy(fw, &buf)
+		}(fileHeader)
+	}
+
+	wg.Wait()
+
+	if errGroup != nil {
+		internalError(w, "Erro ao compactar imagens anonimizadas", errGroup)
+		return
+	}
+
+	if len(errorsLog) > 0 {
+		fw, err := zipWriter.Create("relatorio_erros.txt")
+		if err == nil {
+			_, _ = fw.Write([]byte(strings.Join(errorsLog, "\n")))
+		}
+	}
+
+	if err := zipWriter.Close(); err != nil {
+		internalError(w, "Erro ao finalizar arquivo ZIP", err)
+		return
+	}
+
+	if err := serveDownloadFile(w, zipFile, "application/zip", "imagens_anonimizadas.zip"); err != nil {
+		log.Printf("Erro ao enviar imagens anonimizadas: %v", err)
 	}
 }
 
