@@ -19,8 +19,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/disintegration/imaging"
 	"canivete/imagemeta"
+	"github.com/disintegration/imaging"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 	"github.com/tdewolff/minify/v2"
