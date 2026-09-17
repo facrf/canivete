@@ -62,13 +62,53 @@ docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest
 
 ---
 
+### Raspberry Pi 400: `exec ./canivete: exec format error`
+
+Esse erro indica que o executável não é compatível com a arquitetura do sistema.
+O build usa a plataforma de destino do Docker BuildKit, sem fixar `amd64`.
+
+Confira o sistema instalado (um Pi 400 também pode usar um sistema de 32 bits):
+
+```bash
+uname -m
+getconf LONG_BIT
+docker info --format '{{.Architecture}}'
+```
+
+Com sistema de 64 bits (`aarch64`, `64` e Docker `aarch64`/`arm64`),
+compile uma imagem local com uma tag própria:
+
+```bash
+docker buildx build --platform linux/arm64 --load -t canivete-da-mata:arm64 .
+docker run -d --name canivete-pi400 -p 7001:7001 canivete-da-mata:arm64
+```
+
+Em sistemas ARM de 32 bits, use `--platform linux/arm/v7` e uma tag
+`canivete-da-mata:armv7` em ambos os comandos. Se o comando `buildx` não
+existir, instale o plugin Docker Buildx. Não sobrescreva `TARGETARCH` com
+`--build-arg`: deixe o Docker selecionar a arquitetura.
+
+Para Portainer, publique a correção no GHCR antes de atualizar a stack.
+Depois, habilite a opção de baixar a imagem novamente ao recriar o serviço.
+Para usar o build local, altere `image:` para `canivete-da-mata:arm64` na stack.
+Uma imagem antiga em cache ainda pode conter o executável incompatível.
+
+Sem Docker, confira o executável com `file ./canivete`. Para gerar um binário
+ARM64 a partir do código, use:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o canivete-linux-arm64 .
+```
+
+---
+
 ## 🏗️ Arquiteturas suportadas
 
 | Plataforma | Hardware |
 |---|---|
 | `linux/amd64` | Servidores x86_64, PCs, VMs |
-| `linux/arm64` | Raspberry Pi 4/5 (64-bit), Apple Silicon |
-| `linux/arm/v7` | Raspberry Pi 2/3/4 (32-bit), Orange Pi |
+| `linux/arm64` | Raspberry Pi 4/400/5 (64-bit), Apple Silicon |
+| `linux/arm/v7` | Raspberry Pi 2/3/4/400 (32-bit), Orange Pi |
 | `linux/riscv64` | VisionFive 2, StarFive, Milk-V Mars |
 
 ---

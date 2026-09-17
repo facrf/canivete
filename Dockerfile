@@ -1,8 +1,9 @@
-# Stage 1: Builder
-FROM golang:1.26.5-alpine AS builder
+# syntax=docker/dockerfile:1
+# Stage 1: compilar no host para a arquitetura da imagem de destino.
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine AS builder
 
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 ARG TARGETVARIANT
 
 WORKDIR /app
@@ -15,7 +16,8 @@ RUN go mod download
 COPY . .
 
 # Compilar estaticamente para a plataforma solicitada pelo Docker Buildx.
-RUN CGO_ENABLED=0 \
+RUN test -n "${TARGETOS}" && test -n "${TARGETARCH}" && \
+    CGO_ENABLED=0 \
     GOOS="${TARGETOS}" \
     GOARCH="${TARGETARCH}" \
     GOARM="${TARGETVARIANT#v}" \
