@@ -732,6 +732,7 @@
             const btn = form.querySelector('button');
             const loading = form.parentNode.querySelector('.loading');
             
+            if (btn.disabled) return;
             btn.disabled = true;
             loading.style.display = 'block';
             
@@ -744,7 +745,6 @@
                 
                 if (!response.ok) {
                     const errText = await response.text();
-                    alert(uiText.errorPrefix + ": " + errText);
                     throw new Error(errText);
                 }
                 const contentType = response.headers.get("content-type");
@@ -752,7 +752,7 @@
                 if (contentType && contentType.includes("application/json")) {
                     const data = await response.json();
                     showJsonPreview(form, data);
-                } else if (contentType && contentType.includes("text/plain")) {
+                } else if (contentType && contentType.includes("text/plain") && !response.headers.get("Content-Disposition")) {
                     const text = await response.text();
                     showTextPreview(form, text);
                 } else {
@@ -768,6 +768,7 @@
                 
             } catch (error) {
                 console.error(error);
+                alert(uiText.errorPrefix + ": " + error.message);
             } finally {
                 btn.disabled = false;
                 loading.style.display = 'none';
@@ -854,7 +855,6 @@
             const resultArea = container.querySelector('.result-area');
             const img = resultArea.querySelector('.result-img');
             const btn = resultArea.querySelector('.download-btn');
-            const closeBtn = resultArea.querySelector('.close-btn');
             
             form.style.display = 'none';
             resultArea.style.display = 'block';
@@ -869,28 +869,38 @@
                 img.style.display = 'none';
             }
             
-            closeBtn.onclick = function() {
-                URL.revokeObjectURL(url);
+        }
+
+        document.querySelectorAll('.close-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const resultArea = button.closest('.result-area');
+                const form = resultArea.parentNode.querySelector('form');
+                const download = resultArea.querySelector('.download-btn');
+                if (download.getAttribute('href')?.startsWith('blob:')) URL.revokeObjectURL(download.href);
+                download.removeAttribute('href');
+                download.style.display = 'block';
+                const image = resultArea.querySelector('.result-img');
+                image.removeAttribute('src');
+                image.style.display = 'none';
+                resultArea.querySelector('.custom-result')?.remove();
                 resultArea.style.display = 'none';
                 form.style.display = 'block';
-                const custom = resultArea.querySelector('.custom-result');
-                if(custom) custom.style.display = 'none';
-                const dlBtn = resultArea.querySelector('.download-btn');
-                if(dlBtn) dlBtn.style.display = 'block';
-                if (form.id !== 'form-crop') {
-                    form.reset();
-                    const inputPreview = form.querySelector('.input-preview');
-                    if (inputPreview) inputPreview.style.display = 'none';
-                } else if (cropper) {
-                    // Limpar cropper caso seja o form de crop
+                form.reset();
+                const preview = form.querySelector('.input-preview');
+                if (preview) preview.style.display = 'none';
+                if (form.id === 'form-crop' && cropper) {
                     cropper.destroy();
                     cropper = null;
-                    document.getElementById('cropper-container').style.display = 'none';
-                    form.reset();
+                    cropContainer.style.display = 'none';
                 }
-            };
-        }
+                if (form.querySelector('#b64-file')) {
+                    document.getElementById('b64-file').style.display = 'block';
+                    document.getElementById('b64-text').style.display = 'none';
+                }
+            });
+        });
     
+
         function changeLang(lang) {
             document.cookie = "lang=" + lang + ";path=/;max-age=31536000";
             window.location.href = window.location.pathname + "?v=" + new Date().getTime();

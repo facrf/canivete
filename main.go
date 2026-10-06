@@ -9,8 +9,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -51,6 +53,18 @@ func newHandler() http.Handler {
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		file, err := os.CreateTemp("", "canivete-health-*")
+		if err != nil {
+			http.Error(w, "Armazenamento temporário indisponível", http.StatusServiceUnavailable)
+			return
+		}
+		_, writeErr := file.Write([]byte("ok"))
+		closeErr := file.Close()
+		removeErr := os.Remove(file.Name())
+		if writeErr != nil || closeErr != nil || removeErr != nil {
+			http.Error(w, "Armazenamento temporário indisponível", http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	})
 
@@ -96,7 +110,7 @@ func newHandler() http.Handler {
 	maxJobsStr := os.Getenv("MAX_CONCURRENT_JOBS")
 	maxJobs, err := strconv.Atoi(maxJobsStr)
 	if err != nil || maxJobs < 1 {
-		maxJobs = 100
+		maxJobs = 2
 	}
 	mux.Handle("/process/", limitConcurrentJobs(processingMux, maxJobs))
 
@@ -153,8 +167,33 @@ func serverPort() string {
 	return port
 }
 
+func checkHealth(port string) error {
+	for _, program := range []string{"pdftoppm", "rsvg-convert"} {
+		if _, err := exec.LookPath(program); err != nil {
+			return err
+		}
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get("http://127.0.0.1:" + port + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		return errors.New("servidor indisponível")
+	}
+	return nil
+}
+
 func main() {
 	port := serverPort()
+	if len(os.Args) == 2 && os.Args[1] == "--healthcheck" {
+		if err := checkHealth(port); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
 	server := &http.Server{
 		Addr:              ":" + port,
 		Handler:           newHandler(),
@@ -165,14 +204,17 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-shutdownContext.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
 			log.Printf("Erro durante desligamento do servidor: %v", err)
+			_ = server.Close()
 		}
 	}()
 
@@ -180,4 +222,5 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+	<-shutdownDone
 }

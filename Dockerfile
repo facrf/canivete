@@ -42,7 +42,7 @@ USER canivete
 EXPOSE 7001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:7001/healthz || exit 1
+    CMD ["/app/canivete", "--healthcheck"]
 
 # Executar a aplicação
 CMD ["./canivete"]

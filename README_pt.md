@@ -31,7 +31,7 @@ O sistema pode ser configurado através das seguintes variáveis de ambiente:
 | Variável | Padrão | Descrição |
 |----------|---------|-----------|
 | `PORT` | `7001` | Porta em que o servidor web irá rodar. |
-| `MAX_CONCURRENT_JOBS` | `100` | Limite de processamentos simultâneos (Rate Limiter) para evitar sobrecarga do servidor. |
+| `MAX_CONCURRENT_JOBS` | `2` | Limite de processamentos simultâneos; ajuste conforme a memória disponível. |
 
 ---
 
@@ -47,14 +47,71 @@ docker run -d \
 ```
 Acesse em: **http://localhost:7001**
 
-### Portainer Stack
-1. Stacks → **Add Stack** → Web editor
-2. Cole o conteúdo de [`docker-compose.yml`](docker-compose.yml)
-3. Clique em **Deploy the stack**
+### 🐳 Portainer (Stack / YAML)
+
+1. No painel do **Portainer**, acesse o seu ambiente (**Environment**) e vá em **Stacks** ➔ **Add stack**.
+2. Defina o nome da stack no campo **Name** (ex: `canivete`).
+3. Selecione a opção **Web editor** e cole o seguinte YAML:
+
+```yaml
+version: '3.8'
+
+services:
+  canivete:
+    image: ghcr.io/facrf/canivete:latest
+    container_name: canivete-da-mata
+    restart: unless-stopped
+    stop_grace_period: 20s
+    ports:
+      - "7001:7001"
+    environment:
+      - TZ=America/Sao_Paulo
+      - MAX_CONCURRENT_JOBS=2
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=512M,mode=1777
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "/app/canivete", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+```
+
+4. Clique em **Deploy the stack**.
+5. Acesse a aplicação em: `http://<IP-DO-SEU-SERVIDOR>:7001`.
+
+### Saúde no Portainer e limites de processamento
+
+O contêiner possui healthcheck nativo, executado com `/app/canivete --healthcheck`.
+No Portainer, abra **Containers → canivete-da-mata** para consultar o estado
+`starting`, `healthy` ou `unhealthy` e o histórico das verificações.
+A verificação usa a variável `PORT`, exige os renderizadores `pdftoppm` e
+`rsvg-convert` e consulta `/healthz`, que verifica também o acesso ao diretório temporário.
+O healthcheck sinaliza falhas; `restart: unless-stopped` reinicia processos que
+encerram, mas não reinicia automaticamente um contêiner apenas por estar `unhealthy`.
+
+O padrão é de **2 processamentos simultâneos**. A extração, divisão e rasterização
+aceitam PDFs de até **50 páginas**; páginas rasterizadas têm dimensão máxima de
+**4000 px**, e saídas de conversão/ZIP de PDF têm limite de **64 MiB**.
+SVGs são validados antes da renderização, com até **8000 px por dimensão** e
+**20 megapixels**. O desligamento trata `SIGTERM`, com até 15 segundos para
+concluir requisições; a stack concede 20 segundos antes de forçar a parada.
 
 ### Build local (código-fonte)
 ```bash
-git clone http://192.168.0.10:3010/facrf/canivete.git
+git clone https://github.com/facrf/canivete.git
 cd canivete
 docker build -t canivete-da-mata:latest .
 docker run -d -p 7001:7001 --name canivete-da-mata canivete-da-mata:latest

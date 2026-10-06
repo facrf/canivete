@@ -264,7 +264,7 @@ func stripPNG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 		header := make([]byte, 8)
 		if _, err := io.ReadFull(r, header); err != nil {
 			if err == io.EOF {
-				break
+				return rep, io.ErrUnexpectedEOF
 			}
 			return rep, err
 		}
@@ -296,11 +296,15 @@ func stripPNG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 		}
 
 		if chunkType == "IEND" {
-			io.Copy(w, r)
-			break
+			if length != 0 {
+				return rep, errors.New("invalid IEND length")
+			}
+			// Discard appended data, which may contain identifying metadata.
+			discarded, err := io.Copy(io.Discard, r)
+			rep.BytesSaved += discarded
+			return rep, err
 		}
 	}
-	return rep, nil
 }
 
 func stripWebP(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {

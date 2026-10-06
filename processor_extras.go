@@ -3,6 +3,10 @@ package main
 import (
 	"archive/zip"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"io"
 	"log"
@@ -117,59 +121,49 @@ func handlePdfSplit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanupMultipartForm(r)
-
 	file, _, err := r.FormFile("pdf")
 	if err != nil {
 		http.Error(w, "Arquivo PDF ausente ou inválido na requisição", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
-
-	tmpPdf, err := os.CreateTemp("", "canivete-split-*.pdf")
+	pageCount, err := validatePDFPages(file)
 	if err != nil {
-		internalError(w, "Erro ao preparar PDF temporário", err)
+		http.Error(w, "PDF inválido ou excede o limite de 50 páginas", http.StatusBadRequest)
 		return
 	}
-	defer func() { _ = os.Remove(tmpPdf.Name()) }()
-	if _, err := io.Copy(tmpPdf, file); err != nil {
-		_ = tmpPdf.Close()
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-	if err := tmpPdf.Close(); err != nil {
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-
-	outDir, err := os.MkdirTemp("", "canivete-split-dir-*")
-	if err != nil {
-		internalError(w, "Erro ao preparar diretório temporário", err)
-		return
-	}
-	defer func() { _ = os.RemoveAll(outDir) }()
-
-	conf := model.NewDefaultConfiguration()
-	err = api.SplitFile(tmpPdf.Name(), outDir, 1, conf)
-	if err != nil {
-		log.Printf("Erro ao dividir PDF: %v", err)
-		http.Error(w, "PDF inválido ou não suportado", http.StatusBadRequest)
-		return
-	}
-
 	zipFile, err := os.CreateTemp("", "canivete-split-*.zip")
 	if err != nil {
 		internalError(w, "Erro ao preparar arquivo ZIP", err)
 		return
 	}
-	defer func() {
-		_ = zipFile.Close()
-		_ = os.Remove(zipFile.Name())
-	}()
-	zipWriter := zip.NewWriter(zipFile)
-	if err := addDirectoryToZip(zipWriter, outDir); err != nil {
-		_ = zipWriter.Close()
-		internalError(w, "Erro ao compactar páginas", err)
-		return
+	defer os.Remove(zipFile.Name())
+	defer zipFile.Close()
+	zipWriter := zip.NewWriter(&limitedWriter{writer: zipFile, remaining: maxGeneratedBytes})
+	remainingOutput := &limitedWriter{remaining: maxGeneratedBytes}
+	for page := 1; page <= pageCount; page++ {
+		if err := r.Context().Err(); err != nil {
+			_ = zipWriter.Close()
+			return
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			_ = zipWriter.Close()
+			internalError(w, "Erro ao ler PDF", err)
+			return
+		}
+		entry, err := zipWriter.Create(fmt.Sprintf("page-%03d.pdf", page))
+		if err != nil {
+			_ = zipWriter.Close()
+			internalError(w, "Erro ao compactar páginas", err)
+			return
+		}
+		remainingOutput.writer = entry
+		if err := api.Trim(file, remainingOutput, []string{strconv.Itoa(page)}, model.NewDefaultConfiguration()); err != nil {
+			_ = zipWriter.Close()
+			log.Printf("Erro ao dividir PDF: %v", err)
+			http.Error(w, "PDF inválido ou saída excede 64 MiB", http.StatusBadRequest)
+			return
+		}
 	}
 	if err := zipWriter.Close(); err != nil {
 		internalError(w, "Erro ao finalizar arquivo ZIP", err)
@@ -356,6 +350,12 @@ func handleImgCompress(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
 		return
 	}
+
+	bounds := img.Bounds()
+	opaqueImg := image.NewRGBA(bounds)
+	draw.Draw(opaqueImg, bounds, &image.Uniform{color.White}, image.Point{}, draw.Src)
+	draw.Draw(opaqueImg, bounds, img, bounds.Min, draw.Over)
+	img = opaqueImg
 
 	setDownloadHeaders(w, "image/jpeg", "comprimida.jpg")
 	if err := jpeg.Encode(w, img, &jpeg.Options{Quality: quality}); err != nil {

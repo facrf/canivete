@@ -187,7 +187,7 @@ func handleCrop(w http.ResponseWriter, r *http.Request) {
 	cropped := imaging.Crop(img, rect)
 
 	if finalSize > 0 {
-		cropped = imaging.Resize(cropped, finalSize, finalSize, imaging.Lanczos)
+		cropped = imaging.Fit(cropped, finalSize, finalSize, imaging.Lanczos)
 	}
 
 	setDownloadHeaders(w, "image/png", "cropped.png")
@@ -341,6 +341,11 @@ func handlePdfToImg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	_, err = validatePDFPages(file)
+	if err != nil {
+		http.Error(w, "PDF inválido ou excede o limite de 50 páginas", http.StatusBadRequest)
+		return
+	}
 
 	zipFile, err := os.CreateTemp("", "canivete-images-*.zip")
 	if err != nil {
@@ -349,14 +354,16 @@ func handlePdfToImg(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(zipFile.Name())
 	defer zipFile.Close()
-	zipWriter := zip.NewWriter(zipFile)
+	zipWriter := zip.NewWriter(&limitedWriter{writer: zipFile, remaining: maxGeneratedBytes})
 
+	remainingOutput := &limitedWriter{remaining: maxGeneratedBytes}
 	err = api.ExtractImages(file, nil, func(img model.Image, singleImgPerPage bool, maxPage int) error {
 		fw, err := zipWriter.Create(fmt.Sprintf("%s.%s", img.Name, img.FileType))
 		if err != nil {
 			return err
 		}
-		_, err = io.Copy(fw, img)
+		remainingOutput.writer = fw
+		_, err = io.Copy(remainingOutput, img)
 		return err
 	}, model.NewDefaultConfiguration())
 
@@ -386,6 +393,11 @@ func handlePdfRasterize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	pageCount, err := validatePDFPages(file)
+	if err != nil {
+		http.Error(w, "PDF inválido ou excede o limite de 50 páginas", http.StatusBadRequest)
+		return
+	}
 
 	// Usar pdftoppm (do pacote poppler-utils) para rasterizar o PDF
 	tmpPdf, err := os.CreateTemp("", "upload-*.pdf")
@@ -412,15 +424,33 @@ func handlePdfRasterize(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// pdftoppm -jpeg -r 150 <pdf> <prefix>
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
-	// #nosec G204 -- executável e opções são fixos; os caminhos vêm de os.CreateTemp/MkdirTemp.
-	cmd := exec.CommandContext(ctx, "pdftoppm", "-jpeg", "-r", "150", tmpPdf.Name(), filepath.Join(tmpDir, "page"))
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("Erro ao rasterizar PDF: %v: %s", err, strings.TrimSpace(string(output)))
-		http.Error(w, "PDF inválido, não suportado ou muito complexo", http.StatusBadRequest)
-		return
+	remainingOutput := &limitedWriter{remaining: maxGeneratedBytes}
+	for page := 1; page <= pageCount; page++ {
+		number := strconv.Itoa(page)
+		output, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("page-%03d.jpg", page)))
+		if err != nil {
+			internalError(w, "Erro ao preparar página", err)
+			return
+		}
+		remainingOutput.writer = output
+		// Fixed arguments and generated paths; output is bounded before writing.
+		cmd := exec.CommandContext(ctx, "pdftoppm", "-jpeg", "-r", "150", "-scale-to", strconv.Itoa(maxRenderedDimension), "-f", number, "-l", number, "-singlefile", tmpPdf.Name())
+		cmd.Stdout = remainingOutput
+		var diagnostics bytes.Buffer
+		cmd.Stderr = &limitedWriter{writer: &diagnostics, remaining: 64 << 10}
+		runErr := cmd.Run()
+		closeErr := output.Close()
+		if runErr != nil {
+			log.Printf("Erro ao rasterizar PDF: %v: %q", runErr, diagnostics.String())
+			http.Error(w, "PDF inválido, muito complexo ou saída excede 64 MiB", http.StatusBadRequest)
+			return
+		}
+		if closeErr != nil {
+			internalError(w, "Erro ao salvar página", closeErr)
+			return
+		}
 	}
 
 	zipFile, err := os.CreateTemp("", "canivete-pages-*.zip")
@@ -430,7 +460,7 @@ func handlePdfRasterize(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(zipFile.Name())
 	defer zipFile.Close()
-	zipWriter := zip.NewWriter(zipFile)
+	zipWriter := zip.NewWriter(&limitedWriter{writer: zipFile, remaining: maxGeneratedBytes})
 	if err := addDirectoryToZip(zipWriter, tmpDir); err != nil {
 		_ = zipWriter.Close()
 		internalError(w, "Erro ao compactar páginas do PDF", err)
@@ -459,6 +489,15 @@ func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	renderWidth, renderHeight, err := svgDimensions(file, widthStr)
+	if err != nil {
+		http.Error(w, "SVG inválido ou dimensões acima dos limites permitidos", http.StatusBadRequest)
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		internalError(w, "Erro ao ler SVG", err)
+		return
+	}
 
 	tmpSvg, err := os.CreateTemp("", "upload-*.svg")
 	if err != nil {
@@ -480,25 +519,23 @@ func handleSvgToImg(w http.ResponseWriter, r *http.Request) {
 	outName := tmpSvg.Name() + ".png"
 	defer os.Remove(outName)
 
-	args := []string{"-f", "png", "-o", outName}
-	// Segurança: validar width como inteiro positivo dentro de limite razoável
-	// antes de passar como argumento ao processo externo rsvg-convert
-	if widthStr != "" && widthStr != "0" {
-		wParsed, err := strconv.Atoi(widthStr)
-		if err != nil || wParsed <= 0 || wParsed > 8000 {
-			http.Error(w, "Largura inválida: deve ser um número entre 1 e 8000", http.StatusBadRequest)
-			return
-		}
-		args = append(args, "-w", strconv.Itoa(wParsed))
-	}
-	args = append(args, tmpSvg.Name())
+	args := []string{"-f", "png", "-w", strconv.Itoa(renderWidth), "-h", strconv.Itoa(renderHeight), tmpSvg.Name()}
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
 	defer cancel()
 	// #nosec G204,G702 -- não há shell; largura validada e caminhos gerados por os.CreateTemp.
 	cmd := exec.CommandContext(ctx, "rsvg-convert", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("Erro ao renderizar SVG: %v: %s", err, strings.TrimSpace(string(output)))
+	output, err := os.Create(outName)
+	if err != nil {
+		internalError(w, "Erro ao preparar PNG", err)
+		return
+	}
+	defer output.Close()
+	cmd.Stdout = &limitedWriter{writer: output, remaining: maxGeneratedBytes}
+	var diagnostics bytes.Buffer
+	cmd.Stderr = &limitedWriter{writer: &diagnostics, remaining: 64 << 10}
+	if err := cmd.Run(); err != nil {
+		log.Printf("Erro ao renderizar SVG: %v: %q", err, diagnostics.String())
 		http.Error(w, "SVG inválido, não suportado ou muito complexo", http.StatusBadRequest)
 		return
 	}

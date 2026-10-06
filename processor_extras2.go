@@ -116,7 +116,7 @@ func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*mu
 	defer os.Remove(zipFile.Name())
 	defer zipFile.Close()
 
-	zipWriter := zip.NewWriter(zipFile)
+	zipWriter := zip.NewWriter(&limitedWriter{writer: zipFile, remaining: maxGeneratedBytes})
 	var zipMutex sync.Mutex
 	var errGroup error
 
@@ -125,9 +125,9 @@ func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*mu
 
 	var errorsLog []string
 
-	for _, fileHeader := range files {
+	for index, fileHeader := range files {
 		wg.Add(1)
-		go func(fh *multipart.FileHeader) {
+		go func(index int, fh *multipart.FileHeader) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
@@ -141,8 +141,22 @@ func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*mu
 			}
 			defer file.Close()
 
-			var buf bytes.Buffer
-			report, err := imagemeta.StripAISignatures(r.Context(), file, &buf, "")
+			if fh.Size > maxUploadSize {
+				zipMutex.Lock()
+				errorsLog = append(errorsLog, fmt.Sprintf("%s: Arquivo excede 20 MiB", fh.Filename))
+				zipMutex.Unlock()
+				return
+			}
+			buffer, err := os.CreateTemp("", "canivete-batch-*")
+			if err != nil {
+				zipMutex.Lock()
+				errGroup = err
+				zipMutex.Unlock()
+				return
+			}
+			defer os.Remove(buffer.Name())
+			defer buffer.Close()
+			report, err := imagemeta.StripAISignatures(r.Context(), file, buffer, "")
 			if err != nil {
 				zipMutex.Lock()
 				errorsLog = append(errorsLog, fmt.Sprintf("%s: Erro ao remover metadados (%v)", fh.Filename, err))
@@ -173,13 +187,19 @@ func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*mu
 			if safe == "" {
 				safe = "imagem"
 			}
-			fw, err := zipWriter.Create(fmt.Sprintf("%s-anon.%s", safe, ext))
+			fw, err := zipWriter.Create(fmt.Sprintf("%03d-%s-anon.%s", index+1, safe, ext))
 			if err != nil {
 				errGroup = err
 				return
 			}
-			_, _ = io.Copy(fw, &buf)
-		}(fileHeader)
+			if _, err := buffer.Seek(0, io.SeekStart); err != nil {
+				errGroup = err
+				return
+			}
+			if _, err := io.Copy(fw, buffer); err != nil {
+				errGroup = err
+			}
+		}(index, fileHeader)
 	}
 
 	wg.Wait()
@@ -192,7 +212,11 @@ func handleBatchImgExifStrip(w http.ResponseWriter, r *http.Request, files []*mu
 	if len(errorsLog) > 0 {
 		fw, err := zipWriter.Create("relatorio_erros.txt")
 		if err == nil {
-			_, _ = fw.Write([]byte(strings.Join(errorsLog, "\n")))
+			_, err = fw.Write([]byte(strings.Join(errorsLog, "\n")))
+		}
+		if err != nil {
+			internalError(w, "Erro ao gravar relatório do lote", err)
+			return
 		}
 	}
 
