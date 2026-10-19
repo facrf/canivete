@@ -15,26 +15,45 @@ import (
 
 const (
 	maxPDFPages                = 50
+	maxBatchImagePixels        = 40_000_000
 	maxRenderedDimension       = 4000
 	maxGeneratedBytes    int64 = 64 << 20
 )
+
+var errGeneratedLimit = errors.New("saída excede o limite de 64 MiB")
 
 // limitedWriter prevents generated files from filling temporary storage.
 type limitedWriter struct {
 	writer    io.Writer
 	remaining int64
+	err       error
 }
 
 func (w *limitedWriter) Write(p []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
 	if int64(len(p)) > w.remaining {
-		return 0, errors.New("saída excede o limite de 64 MiB")
+		w.err = errGeneratedLimit
+		return 0, w.err
 	}
 	n, err := w.writer.Write(p)
 	w.remaining -= int64(n)
 	if err == nil && n != len(p) {
 		err = io.ErrShortWrite
 	}
+	w.err = err
 	return n, err
+}
+
+// Some PDF APIs flush buffered output in a defer and do not return that flush
+// error. Always inspect the underlying writer before offering a download.
+func writeLimitedPDF(output io.Writer, generate func(io.Writer) error) error {
+	writer := &limitedWriter{writer: output, remaining: maxGeneratedBytes}
+	if err := generate(writer); err != nil {
+		return err
+	}
+	return writer.err
 }
 
 func validatePDFPages(file io.ReadSeeker) (int, error) {
@@ -143,4 +162,15 @@ func svgDimensions(reader io.Reader, requestedWidth string) (int, int, error) {
 		return 0, 0, err
 	}
 	return w, h, nil
+}
+
+// Image resource names are user-controlled PDF data. ZIP names use only numeric
+// page/object identifiers and a fixed extension allowlist.
+func safeImageExtension(extension string) string {
+	switch strings.ToLower(extension) {
+	case "png", "jpg", "jpeg", "tif", "tiff", "bmp", "jp2", "jpx", "webp":
+		return strings.ToLower(extension)
+	default:
+		return "bin"
+	}
 }

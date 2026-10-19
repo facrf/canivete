@@ -89,11 +89,14 @@ and the check history. The probe honors `PORT`, checks the PDF/SVG renderers,
 and calls `/healthz`, which also checks temporary storage access. An unhealthy
 status alone does not trigger a restart under `restart: unless-stopped`.
 
-The default concurrency is 2. PDF extraction, splitting and rasterization accept
-up to 50 pages; rasterized pages have a maximum dimension of 4000 px. Generated
-PDF conversion archives are limited to 64 MiB. SVG output is limited to 8000 px
-per dimension and 20 megapixels. Shutdown handles SIGTERM and allows 15 seconds
-for active requests; Compose allows 20 seconds before forcing termination.
+The default concurrency is 2. Every PDF operation accepts at most 50 pages per
+document; a merge accepts 50 pages in total. A PDF job has a three-minute limit.
+Rasterized pages are limited to 4000 px, and generated PDF/ZIP files to 64 MiB.
+Image-to-PDF batches are limited to 40 megapixels in total. SVG output is
+limited to 8000 px per dimension and 20 megapixels. Shutdown handles SIGTERM
+and allows 15 seconds for active requests; Compose allows 20 seconds before
+forcing termination. See the detailed [processing and privacy policy](docs/PROCESSAMENTO_E_PRIVACIDADE.md)
+(in Portuguese).
 
 ### Build from source
 ```bash

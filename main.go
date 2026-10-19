@@ -87,14 +87,7 @@ func newHandler() http.Handler {
 	processingMux.HandleFunc("POST /process/resize", handleResize)
 	processingMux.HandleFunc("POST /process/crop", handleCrop)
 	processingMux.HandleFunc("POST /process/convert", handleConvert)
-	processingMux.HandleFunc("POST /process/img-to-pdf", handleImgToPdf)
-	processingMux.HandleFunc("POST /process/pdf-to-img", handlePdfToImg)
-	processingMux.HandleFunc("POST /process/pdf-rasterize", handlePdfRasterize)
 	processingMux.HandleFunc("POST /process/svg-to-img", handleSvgToImg)
-	processingMux.HandleFunc("POST /process/pdf-merge", handlePdfMerge)
-	processingMux.HandleFunc("POST /process/pdf-split", handlePdfSplit)
-	processingMux.HandleFunc("POST /process/pdf-protect", handlePdfProtect)
-	processingMux.HandleFunc("POST /process/pdf-optimize", handlePdfOptimize)
 	processingMux.HandleFunc("POST /process/img-compress", handleImgCompress)
 	processingMux.HandleFunc("POST /process/img-palette", handleImgPalette)
 	processingMux.HandleFunc("POST /process/qr-generate", handleQrGenerate)
@@ -102,10 +95,12 @@ func newHandler() http.Handler {
 	processingMux.HandleFunc("POST /process/img-exif-strip", handleImgExifStrip)
 	processingMux.HandleFunc("POST /process/img-rotate", handleImgRotate)
 	processingMux.HandleFunc("POST /process/img-to-ico", handleImgToIco)
-	processingMux.HandleFunc("POST /process/pdf-rotate", handlePdfRotate)
-	processingMux.HandleFunc("POST /process/pdf-watermark", handlePdfWatermark)
 	processingMux.HandleFunc("POST /process/base64", handleBase64)
 	processingMux.HandleFunc("POST /process/minify", handleMinify)
+
+	for operation := range pdfHandlers() {
+		processingMux.Handle("POST /process/"+operation, isolatePDF(operation, pdfJobTimeout))
+	}
 
 	maxJobsStr := os.Getenv("MAX_CONCURRENT_JOBS")
 	maxJobs, err := strconv.Atoi(maxJobsStr)
@@ -186,6 +181,9 @@ func checkHealth(port string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--pdf-worker" {
+		os.Exit(pdfWorkerMain())
+	}
 	port := serverPort()
 	if len(os.Args) == 2 && os.Args[1] == "--healthcheck" {
 		if err := checkHealth(port); err != nil {
@@ -199,7 +197,7 @@ func main() {
 		Handler:           newHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       2 * time.Minute,
-		WriteTimeout:      5 * time.Minute,
+		WriteTimeout:      7 * time.Minute,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}

@@ -102,12 +102,16 @@ A verificação usa a variável `PORT`, exige os renderizadores `pdftoppm` e
 O healthcheck sinaliza falhas; `restart: unless-stopped` reinicia processos que
 encerram, mas não reinicia automaticamente um contêiner apenas por estar `unhealthy`.
 
-O padrão é de **2 processamentos simultâneos**. A extração, divisão e rasterização
-aceitam PDFs de até **50 páginas**; páginas rasterizadas têm dimensão máxima de
-**4000 px**, e saídas de conversão/ZIP de PDF têm limite de **64 MiB**.
+O padrão é de **2 processamentos simultâneos**. Todas as operações de PDF
+aceitam no máximo **50 páginas** por documento; a junção aceita **50 páginas no
+total**. O trabalho termina após **3 minutos**. Páginas rasterizadas têm
+dimensão máxima de **4000 px**, e saídas de PDF/ZIP têm limite de **64 MiB**.
+A criação de PDF a partir de imagens aceita até **40 megapixels somados**.
 SVGs são validados antes da renderização, com até **8000 px por dimensão** e
 **20 megapixels**. O desligamento trata `SIGTERM`, com até 15 segundos para
 concluir requisições; a stack concede 20 segundos antes de forçar a parada.
+Confira os limites completos e a política de remoção de metadados em
+[Processamento e privacidade](docs/PROCESSAMENTO_E_PRIVACIDADE.md).
 
 ### Build local (código-fonte)
 ```bash

@@ -1,0 +1,31 @@
+name: Quality checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install rendering tools for integration tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils librsvg2-bin
+      - name: Verify modules and formatting
+        run: |
+          go mod verify
+          test -z "$(gofmt -l $(git ls-files '*.go'))"
+      - name: Run tests with race detector
+        run: go test -race ./...
+      - name: Run go vet
+        run: go vet ./...
+      - name: Scan known vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          govulncheck ./...

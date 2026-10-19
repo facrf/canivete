@@ -1,6 +1,6 @@
 module canivete
 
-go 1.26.0
+go 1.26.9
 
 require (
 	github.com/EdlinOrg/prominentcolor v1.0.0

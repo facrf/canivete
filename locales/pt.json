@@ -65,7 +65,7 @@
   "pass_ph": "Digite a Senha Forte",
   "protect_btn": "Proteger com Senha",
   "exif_title": "🕵️ Remover Metadados",
-  "exif_desc": "Apague EXIF (GPS, Data, Câmera) de fotos JPG, PNG ou WebP garantindo privacidade.",
+  "exif_desc": "Remova metadados comuns, incluindo EXIF (GPS, data e câmera), de fotos JPG, PNG ou WebP.",
   "exif_btn": "Limpar Foto(s)",
   "rotate_title": "🔄 Girar & Espelhar Imagem",
   "rotate_desc": "Gire em vários ângulos ou espelhe a imagem vertical/horizontalmente.",

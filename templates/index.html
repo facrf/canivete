@@ -271,7 +271,7 @@
                 <div class="content">
                     <p>{{ .T "svg2img_desc" }}</p>
                     <form id="form-svg-img" action="/process/svg-to-img" method="POST" enctype="multipart/form-data">
-                        <input type="file" name="svg" accept=".svg" required onchange="previewImage(this)">
+                        <input type="file" name="svg" accept=".svg,image/svg+xml" required>
                         
                         <label>
                             {{ .T "desired_width" }}
@@ -666,7 +666,7 @@
         });
 
         // Preview automático para os outros inputs de imagem (exceto PDF, múltiplos e o próprio crop)
-        document.querySelectorAll('input[type="file"][accept="image/*"]').forEach(input => {
+        document.querySelectorAll('input[type="file"][accept="image/*"], input[type="file"][name="svg"]').forEach(input => {
             if (input.id === 'crop-file-input' || input.multiple) return;
 
             input.addEventListener('change', function(e) {

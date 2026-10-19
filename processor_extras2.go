@@ -54,6 +54,10 @@ func handleImgExifStrip(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileHeader := files[0]
+	if fileHeader.Size > maxUploadSize {
+		http.Error(w, "Imagem excede o limite de 20 MiB", http.StatusRequestEntityTooLarge)
+		return
+	}
 	file, err := fileHeader.Open()
 	if err != nil {
 		http.Error(w, "Erro ao abrir imagem", http.StatusBadRequest)
@@ -384,48 +388,24 @@ func handlePdfRotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanupMultipartForm(r)
-
-	file, _, err := r.FormFile("pdf")
-	if err != nil {
-		http.Error(w, "PDF não enviado", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
 	degrees, err := strconv.Atoi(r.FormValue("degrees"))
 	if err != nil || (degrees != 90 && degrees != 180 && degrees != 270) {
 		http.Error(w, "Rotação deve ser 90, 180 ou 270 graus", http.StatusBadRequest)
 		return
 	}
-
 	pages := strings.TrimSpace(r.FormValue("pages"))
 	if len(pages) > 200 {
 		http.Error(w, "Seleção de páginas muito longa", http.StatusBadRequest)
 		return
 	}
-	var pageSelection []string
-	if pages != "" {
-		pageSelection = []string{pages}
-	}
-
-	output, err := os.CreateTemp("", "canivete-rotated-*.pdf")
+	selection, err := api.ParsePageSelection(pages)
 	if err != nil {
-		internalError(w, "Erro ao preparar PDF de saída", err)
+		http.Error(w, "Seleção de páginas inválida", http.StatusBadRequest)
 		return
 	}
-	defer func() {
-		_ = output.Close()
-		_ = os.Remove(output.Name())
-	}()
-
-	if err := api.Rotate(file, output, degrees, pageSelection, nil); err != nil {
-		log.Printf("Erro ao girar PDF: %v", err)
-		http.Error(w, "PDF ou seleção de páginas inválida", http.StatusBadRequest)
-		return
-	}
-	if err := serveDownloadFile(w, output, "application/pdf", "rotated.pdf"); err != nil {
-		log.Printf("Erro ao enviar PDF rotacionado: %v", err)
-	}
+	transformPDF(w, r, "rotated.pdf", func(input io.ReadSeeker, output io.Writer) error {
+		return api.Rotate(input, output, degrees, selection, nil)
+	})
 }
 
 func writeICO(w io.Writer, images [][]byte) error {
@@ -540,13 +520,6 @@ func handlePdfWatermark(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanupMultipartForm(r)
 
-	file, _, err := r.FormFile("pdf")
-	if err != nil {
-		http.Error(w, "PDF não enviado", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
 	watermarkText := strings.TrimSpace(r.FormValue("text"))
 	if watermarkText == "" {
 		watermarkText = "Watermark"
@@ -568,22 +541,7 @@ func handlePdfWatermark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output, err := os.CreateTemp("", "canivete-watermarked-*.pdf")
-	if err != nil {
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	defer func() {
-		_ = output.Close()
-		_ = os.Remove(output.Name())
-	}()
-
-	if err := api.AddWatermarks(file, output, nil, watermark, nil); err != nil {
-		log.Printf("Erro ao adicionar marca d'água: %v", err)
-		http.Error(w, "PDF inválido ou não suportado", http.StatusBadRequest)
-		return
-	}
-	if err := serveDownloadFile(w, output, "application/pdf", "watermarked.pdf"); err != nil {
-		log.Printf("Erro ao enviar PDF com marca d'água: %v", err)
-	}
+	transformPDF(w, r, "watermarked.pdf", func(input io.ReadSeeker, output io.Writer) error {
+		return api.AddWatermarks(input, output, nil, watermark, nil)
+	})
 }

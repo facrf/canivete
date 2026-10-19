@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -26,6 +27,10 @@ const (
 )
 
 func parseMultipartForm(w http.ResponseWriter, r *http.Request, maxBytes int64) bool {
+	if err := r.Context().Err(); err != nil {
+		http.Error(w, "Requisição cancelada", http.StatusRequestTimeout)
+		return false
+	}
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
@@ -153,4 +158,32 @@ func saveToTempFile(src io.Reader, prefix string) (string, error) {
 		return "", err
 	}
 	return tmp.Name(), nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
+}
+
+type contextReadSeeker struct {
+	ctx context.Context
+	io.ReadSeeker
+}
+
+func (r contextReadSeeker) Read(p []byte) (int, error) {
+	return (&contextReader{ctx: r.ctx, reader: r.ReadSeeker}).Read(p)
+}
+
+func (r contextReadSeeker) Seek(offset int64, whence int) (int64, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.ReadSeeker.Seek(offset, whence)
 }

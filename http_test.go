@@ -99,6 +99,9 @@ func TestTemplateUsesSafeDOMAndContainsSignature(t *testing.T) {
 	if !strings.Contains(text, "<!-- Developed with care by FACRF - https://github.com/facrf -->") {
 		t.Error("assinatura obrigatória ausente")
 	}
+	if strings.Contains(text, "previewImage(this)") {
+		t.Error("template chama previewImage, que não existe")
+	}
 }
 
 func TestLocaleKeysAreConsistent(t *testing.T) {

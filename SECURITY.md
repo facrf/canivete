@@ -18,3 +18,13 @@ Se você descobrir qualquer problema relacionado à segurança ou vazamento de c
 Em vez disso, notifique os mantenedores do projeto privadamente através dos canais diretos da comunidade. Forneça uma descrição detalhada da vulnerabilidade, bem como os passos necessários para reproduzi-la na versão mais recente.
 
 Nós nos comprometemos a analisar, debater os impactos e disponibilizar um patch de correção da maneira mais rápida possível!
+
+## Processamento de arquivos
+
+Os limites, prazos, arquivos temporários e formatos de metadados tratados estão
+documentados em [Processamento e privacidade](docs/PROCESSAMENTO_E_PRIVACIDADE.md).
+O subprocesso de PDF permite interromper trabalho que exceda o prazo; ele usa
+as mesmas permissões do contêiner e não constitui um isolamento de acesso ao
+sistema de arquivos. Em produção, mantenha as restrições de usuário sem
+privilégios, sistema de arquivos somente leitura e limites de recursos descritos
+em `docker-compose.yml`.

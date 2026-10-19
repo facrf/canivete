@@ -64,6 +64,8 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 		br = bufio.NewReader(r)
 	}
 
+	hasFrame, hasScan, hasEntropy := false, false, false
+
 	soi := make([]byte, 2)
 	if _, err := io.ReadFull(br, soi); err != nil {
 		return rep, err
@@ -86,7 +88,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 			b, err = br.ReadByte()
 			if err != nil {
 				if err == io.EOF {
-					return rep, nil
+					return rep, io.ErrUnexpectedEOF
 				}
 				return rep, err
 			}
@@ -102,20 +104,24 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 					}
 				}
 				if b2 == 0x00 {
-					continue
+					return rep, errors.New("unexpected stuffed byte outside JPEG scan")
 				}
 				b = b2
 				break
 			} else {
-				if _, err := w.Write([]byte{b}); err != nil {
-					return rep, err
-				}
+				return rep, errors.New("unexpected data outside JPEG scan")
 			}
 		}
 
 		marker := b
 
 	processMarker:
+		if marker == 0xD8 {
+			return rep, errors.New("unexpected JPEG start marker")
+		}
+		if marker == 0xD9 && (!hasFrame || !hasScan || !hasEntropy) {
+			return rep, errors.New("JPEG has no image frame or scan data")
+		}
 		if (marker >= 0xD0 && marker <= 0xD9) || marker == 0x01 {
 			if _, err := w.Write([]byte{0xFF, marker}); err != nil {
 				return rep, err
@@ -123,9 +129,9 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 			if marker == 0xD9 {
 				// EOI reached. We intentionally DROP any trailing data
 				// to prevent appended metadata chunks.
-				skipped, _ := io.Copy(io.Discard, br)
+				skipped, err := io.Copy(io.Discard, &contextReader{ctx: ctx, reader: br})
 				rep.BytesSaved += skipped
-				return rep, nil
+				return rep, err
 			}
 			continue
 		}
@@ -140,6 +146,34 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 		}
 
 		dataLen := length - 2
+		isFrame := marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC
+		if isFrame || marker == 0xDA {
+			if dataLen < 6 || dataLen > 18 {
+				return rep, errors.New("invalid JPEG frame or scan header")
+			}
+			data := make([]byte, dataLen)
+			if _, err := io.ReadFull(br, data); err != nil {
+				return rep, err
+			}
+			if isFrame {
+				components := int(data[5])
+				if components < 1 || components > 4 || dataLen != 6+3*components ||
+					binary.BigEndian.Uint16(data[1:3]) == 0 || binary.BigEndian.Uint16(data[3:5]) == 0 {
+					return rep, errors.New("invalid JPEG image frame")
+				}
+				hasFrame = true
+			} else {
+				components := int(data[0])
+				if !hasFrame || components < 1 || components > 4 || dataLen != 4+2*components {
+					return rep, errors.New("invalid JPEG scan")
+				}
+				hasScan = true
+			}
+			if _, err := w.Write(append([]byte{0xFF, marker, lenBuf[0], lenBuf[1]}, data...)); err != nil {
+				return rep, err
+			}
+			dataLen = 0
+		}
 		strip := false
 		chunkName := ""
 
@@ -161,7 +195,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 			}
 			rep.StrippedChunks = append(rep.StrippedChunks, chunkName)
 			rep.BytesSaved += skipped + 4 // 2 marker + 2 length
-		} else {
+		} else if !isFrame && marker != 0xDA {
 			if _, err := w.Write([]byte{0xFF, marker, lenBuf[0], lenBuf[1]}); err != nil {
 				return rep, err
 			}
@@ -179,10 +213,14 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 		if marker == 0xDA {
 			// Entropy data starts. Fast-scan until we hit a marker that ends it.
 			for {
+				if err := ctx.Err(); err != nil {
+					return rep, err
+				}
 				chunk, err := br.ReadSlice(0xFF)
 
 				if err == bufio.ErrBufferFull {
 					// 0xFF not found in this buffer segment
+					hasEntropy = true
 					if _, wErr := w.Write(chunk); wErr != nil {
 						return rep, wErr
 					}
@@ -192,6 +230,9 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 				}
 
 				hasFF := len(chunk) > 0 && chunk[len(chunk)-1] == 0xFF
+				if (!hasFF && len(chunk) > 0) || (hasFF && len(chunk) > 1) {
+					hasEntropy = true
+				}
 
 				// Write everything EXCEPT the 0xFF (if present)
 				if hasFF {
@@ -203,7 +244,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 						return rep, wErr
 					}
 					if err == io.EOF {
-						return rep, nil
+						return rep, io.ErrUnexpectedEOF
 					}
 				}
 
@@ -213,8 +254,7 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 						b2, err = br.ReadByte()
 						if err != nil {
 							if err == io.EOF {
-								_, wErr := w.Write([]byte{0xFF})
-								return rep, wErr
+								return rep, io.ErrUnexpectedEOF
 							}
 							return rep, err
 						}
@@ -228,6 +268,9 @@ func stripJPEG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 					}
 
 					if b2 == 0x00 || (b2 >= 0xD0 && b2 <= 0xD7) {
+						if b2 == 0x00 {
+							hasEntropy = true
+						}
 						if _, wErr := w.Write([]byte{0xFF, b2}); wErr != nil {
 							return rep, wErr
 						}
@@ -307,90 +350,131 @@ func stripPNG(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 	}
 }
 
+// contextReader checks cancellation between streaming reads without buffering pixels.
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
+}
+
 func stripWebP(ctx context.Context, r io.Reader, w io.Writer) (Report, error) {
 	rep := Report{Format: "webp"}
-
-	tmpFile, err := os.CreateTemp("", "webp-strip-*.webp")
+	r = &contextReader{ctx: ctx, reader: r}
+	var header [12]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
+		return rep, err
+	}
+	if string(header[:4]) != "RIFF" || string(header[8:]) != "WEBP" {
+		return rep, errors.New("not a valid WebP")
+	}
+	size := int64(binary.LittleEndian.Uint32(header[4:8]))
+	if size < 4 || size > (1<<32)-10 || size%2 != 0 {
+		return rep, errors.New("invalid WebP RIFF size")
+	}
+	tmp, err := os.CreateTemp("", "webp-strip-*.webp")
 	if err != nil {
 		return rep, err
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
-
-	riffHeader := make([]byte, 12)
-	if _, err := io.ReadFull(r, riffHeader); err != nil {
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	if _, err := tmp.Write(header[:]); err != nil {
 		return rep, err
 	}
-	if string(riffHeader[0:4]) != "RIFF" || string(riffHeader[8:12]) != "WEBP" {
-		return rep, errors.New("not a valid WebP")
-	}
-
-	if _, err := tmpFile.Write(riffHeader); err != nil {
-		return rep, err
-	}
-
-	newRiffSize := uint32(4)
-
-	for {
-		if err := ctx.Err(); err != nil {
+	chunks := &io.LimitedReader{R: r, N: size - 4}
+	newSize := uint32(4)
+	hasImage, hasExtended := false, false
+	for chunks.N > 0 {
+		if chunks.N < 8 {
+			return rep, io.ErrUnexpectedEOF
+		}
+		var chunk [8]byte
+		if _, err := io.ReadFull(chunks, chunk[:]); err != nil {
 			return rep, err
 		}
-
-		chunkHeader := make([]byte, 8)
-		if _, err := io.ReadFull(r, chunkHeader); err != nil {
-			if err == io.EOF {
-				break
+		kind := string(chunk[:4])
+		length := int64(binary.LittleEndian.Uint32(chunk[4:]))
+		padded := length + length%2
+		if padded > chunks.N {
+			return rep, errors.New("WebP chunk exceeds RIFF boundary")
+		}
+		keep := false
+		switch kind {
+		case "VP8X", "ICCP", "ANIM", "ANMF", "ALPH", "VP8 ", "VP8L":
+			keep = true
+		}
+		if !keep {
+			rep.StrippedChunks = append(rep.StrippedChunks, strings.TrimSpace(kind))
+			rep.BytesSaved += 8 + padded
+			if _, err := io.CopyN(io.Discard, chunks, padded); err != nil {
+				return rep, err
 			}
-			return rep, err
+			continue
 		}
-
-		chunkType := string(chunkHeader[0:4])
-		chunkSize := binary.LittleEndian.Uint32(chunkHeader[4:8])
-
-		padding := uint32(0)
-		if chunkSize%2 != 0 {
-			padding = 1
-		}
-
-		strip := false
-		switch chunkType {
-		case "EXIF", "XMP ", "C2PA":
-			strip = true
-		}
-
-		if strip {
-			rep.StrippedChunks = append(rep.StrippedChunks, strings.TrimSpace(chunkType))
-			rep.BytesSaved += int64(8 + chunkSize + padding)
-
-			if _, err := io.CopyN(io.Discard, r, int64(chunkSize+padding)); err != nil {
+		if kind == "VP8X" {
+			if hasExtended || newSize != 4 || length != 10 {
+				return rep, errors.New("invalid VP8X header")
+			}
+			hasExtended = true
+			var data [10]byte
+			if _, err := io.ReadFull(chunks, data[:]); err != nil {
+				return rep, err
+			}
+			// Remove EXIF and XMP flags; retain alpha, animation and color profiles.
+			data[0] &^= 0x0c
+			if _, err := tmp.Write(chunk[:]); err != nil {
+				return rep, err
+			}
+			if _, err := tmp.Write(data[:]); err != nil {
 				return rep, err
 			}
 		} else {
-			if _, err := tmpFile.Write(chunkHeader); err != nil {
+			if (kind == "VP8 " || kind == "VP8L" || kind == "ANMF") && length > 0 {
+				hasImage = true
+			}
+			if _, err := tmp.Write(chunk[:]); err != nil {
 				return rep, err
 			}
-			if _, err := io.CopyN(tmpFile, r, int64(chunkSize+padding)); err != nil {
+			if _, err := io.CopyN(tmp, chunks, length); err != nil {
 				return rep, err
 			}
-			newRiffSize += 8 + chunkSize + padding
+			if padded != length {
+				var pad [1]byte
+				if _, err := io.ReadFull(chunks, pad[:]); err != nil {
+					return rep, err
+				}
+				if pad[0] != 0 {
+					return rep, errors.New("invalid WebP chunk padding")
+				}
+				if _, err := tmp.Write(pad[:]); err != nil {
+					return rep, err
+				}
+			}
 		}
+		// The original RIFF boundary bounds this sum within uint32.
+		newSize += uint32(8 + padded)
 	}
-
-	if _, err := tmpFile.Seek(4, io.SeekStart); err != nil {
+	if !hasImage {
+		return rep, errors.New("WebP has no image data")
+	}
+	// Never interpret appended data as additional chunks.
+	discarded, err := io.Copy(io.Discard, r)
+	rep.BytesSaved += discarded
+	if err != nil {
 		return rep, err
 	}
-	sizeBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(sizeBuf, newRiffSize)
-	if _, err := tmpFile.Write(sizeBuf); err != nil {
+	binary.LittleEndian.PutUint32(header[4:8], newSize)
+	if _, err := tmp.WriteAt(header[4:8], 4); err != nil {
 		return rep, err
 	}
-
-	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 		return rep, err
 	}
-	if _, err := io.Copy(w, tmpFile); err != nil {
-		return rep, err
-	}
-
-	return rep, nil
+	_, err = io.Copy(w, &contextReader{ctx: ctx, reader: tmp})
+	return rep, err
 }

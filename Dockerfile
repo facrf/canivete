@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Stage 1: compilar no host para a arquitetura da imagem de destino.
-FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.9-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH

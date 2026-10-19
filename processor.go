@@ -273,6 +273,7 @@ func handleImgToPdf(w http.ResponseWriter, r *http.Request) {
 	}
 
 	imgReaders := make([]io.Reader, 0, len(files))
+	totalPixels := int64(0)
 	openedFiles := make([]io.Closer, 0, len(files))
 	defer func() {
 		for _, openedFile := range openedFiles {
@@ -297,6 +298,23 @@ func handleImgToPdf(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Imagem inválida ou acima dos limites permitidos", http.StatusBadRequest)
 			return
 		}
+		config, _, err := image.DecodeConfig(file)
+		if err != nil {
+			_ = file.Close()
+			http.Error(w, "Imagem inválida", http.StatusBadRequest)
+			return
+		}
+		totalPixels += int64(config.Width) * int64(config.Height)
+		if totalPixels > maxBatchImagePixels {
+			_ = file.Close()
+			http.Error(w, "Lote excede o limite total de 40 megapixels", http.StatusBadRequest)
+			return
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			_ = file.Close()
+			internalError(w, "Erro ao ler imagem", err)
+			return
+		}
 		openedFiles = append(openedFiles, file)
 		imgReaders = append(imgReaders, file)
 	}
@@ -318,9 +336,10 @@ func handleImgToPdf(w http.ResponseWriter, r *http.Request) {
 		_ = os.Remove(pdfFile.Name())
 	}()
 
-	err = api.ImportImages(nil, pdfFile, imgReaders, imp, conf)
+	err = writeLimitedPDF(pdfFile, func(output io.Writer) error { return api.ImportImages(nil, output, imgReaders, imp, conf) })
 	if err != nil {
-		internalError(w, "Erro ao gerar PDF", err)
+		log.Printf("Erro ao gerar PDF: %v", err)
+		http.Error(w, "Imagem inválida ou saída excede 64 MiB", http.StatusBadRequest)
 		return
 	}
 
@@ -357,8 +376,10 @@ func handlePdfToImg(w http.ResponseWriter, r *http.Request) {
 	zipWriter := zip.NewWriter(&limitedWriter{writer: zipFile, remaining: maxGeneratedBytes})
 
 	remainingOutput := &limitedWriter{remaining: maxGeneratedBytes}
+	imageIndex := 0
 	err = api.ExtractImages(file, nil, func(img model.Image, singleImgPerPage bool, maxPage int) error {
-		fw, err := zipWriter.Create(fmt.Sprintf("%s.%s", img.Name, img.FileType))
+		imageIndex++
+		fw, err := zipWriter.Create(fmt.Sprintf("page-%03d-image-%06d.%s", img.PageNr, imageIndex, safeImageExtension(img.FileType)))
 		if err != nil {
 			return err
 		}

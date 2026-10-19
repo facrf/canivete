@@ -28,89 +28,58 @@ func handlePdfMerge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanupMultipartForm(r)
-
 	files := r.MultipartForm.File["pdfs"]
-	if len(files) < 2 {
-		http.Error(w, "Selecione pelo menos 2 PDFs", http.StatusBadRequest)
+	if len(files) < 2 || len(files) > maxBatchFiles {
+		http.Error(w, "Selecione entre 2 e 50 PDFs", http.StatusBadRequest)
 		return
 	}
-	if len(files) > maxBatchFiles {
-		http.Error(w, "Quantidade máxima de PDFs excedida", http.StatusBadRequest)
-		return
-	}
-
-	var inFiles []string
+	inputs := make([]io.ReadSeeker, 0, len(files))
+	var opened []io.Closer
 	defer func() {
-		for _, name := range inFiles {
-			_ = os.Remove(name)
+		for _, file := range opened {
+			_ = file.Close()
 		}
 	}()
-	for _, fileHeader := range files {
-		if fileHeader.Size > maxPDFUploadSize {
+	totalPages := 0
+	for _, header := range files {
+		if header.Size > maxPDFUploadSize {
 			http.Error(w, "Um dos PDFs excede o limite individual", http.StatusRequestEntityTooLarge)
 			return
 		}
-		file, err := fileHeader.Open()
+		file, err := header.Open()
 		if err != nil {
-			http.Error(w, "Erro ao ler arquivo", http.StatusInternalServerError)
+			internalError(w, "Erro ao abrir PDF", err)
 			return
 		}
-		tmp, err := os.CreateTemp("", "canivete-merge-*.pdf")
+		opened = append(opened, file)
+		input := contextReadSeeker{ctx: r.Context(), ReadSeeker: file}
+		count, err := validatePDFPages(input)
 		if err != nil {
-			_ = file.Close()
-			internalError(w, "Erro ao preparar PDF temporário", err)
+			http.Error(w, "PDF inválido ou excede o limite de 50 páginas", http.StatusBadRequest)
 			return
 		}
-		if _, err := io.Copy(tmp, file); err != nil {
-			_ = tmp.Close()
-			_ = file.Close()
-			_ = os.Remove(tmp.Name())
-			internalError(w, "Erro ao salvar PDF temporário", err)
+		totalPages += count
+		if totalPages > maxPDFPages {
+			http.Error(w, "A junção deve ter no máximo 50 páginas no total", http.StatusBadRequest)
 			return
 		}
-		if err := tmp.Close(); err != nil {
-			_ = file.Close()
-			_ = os.Remove(tmp.Name())
-			internalError(w, "Erro ao salvar PDF temporário", err)
-			return
-		}
-		if err := file.Close(); err != nil {
-			_ = os.Remove(tmp.Name())
-			internalError(w, "Erro ao ler PDF", err)
-			return
-		}
-		inFiles = append(inFiles, tmp.Name())
+		inputs = append(inputs, input)
 	}
-
-	outFile, err := os.CreateTemp("", "canivete-merged-*.pdf")
+	output, err := os.CreateTemp("", "canivete-merged-*.pdf")
 	if err != nil {
 		internalError(w, "Erro ao preparar PDF de saída", err)
 		return
 	}
-	outName := outFile.Name()
-	if err := outFile.Close(); err != nil {
-		_ = os.Remove(outName)
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	defer func() { _ = os.Remove(outName) }()
-
-	conf := model.NewDefaultConfiguration()
-	err = api.MergeCreateFile(inFiles, outName, false, conf)
-	if err != nil {
+	defer os.Remove(output.Name())
+	defer output.Close()
+	if err := writeLimitedPDF(output, func(writer io.Writer) error {
+		return api.MergeRaw(inputs, writer, false, model.NewDefaultConfiguration())
+	}); err != nil {
 		log.Printf("Erro ao juntar PDFs: %v", err)
-		http.Error(w, "Um ou mais PDFs são inválidos ou não suportados", http.StatusBadRequest)
+		http.Error(w, "PDF inválido ou saída excede 64 MiB", http.StatusBadRequest)
 		return
 	}
-
-	// #nosec G304 -- outName é retornado por os.CreateTemp e nunca recebe entrada do usuário.
-	result, err := os.Open(outName)
-	if err != nil {
-		internalError(w, "Erro ao abrir PDF gerado", err)
-		return
-	}
-	defer result.Close()
-	if err := serveDownloadFile(w, result, "application/pdf", "merged.pdf"); err != nil {
+	if err := serveDownloadFile(w, output, "application/pdf", "merged.pdf"); err != nil {
 		log.Printf("Erro ao enviar PDF unido: %v", err)
 	}
 }
@@ -164,6 +133,11 @@ func handlePdfSplit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "PDF inválido ou saída excede 64 MiB", http.StatusBadRequest)
 			return
 		}
+		if remainingOutput.err != nil {
+			_ = zipWriter.Close()
+			http.Error(w, "Saída excede 64 MiB", http.StatusBadRequest)
+			return
+		}
 	}
 	if err := zipWriter.Close(); err != nil {
 		internalError(w, "Erro ao finalizar arquivo ZIP", err)
@@ -196,63 +170,11 @@ func handlePdfProtect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, _, err := r.FormFile("pdf")
-	if err != nil {
-		http.Error(w, "Erro ao ler arquivo", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	tmpPdf, err := os.CreateTemp("", "canivete-protect-*.pdf")
-	if err != nil {
-		internalError(w, "Erro ao preparar PDF temporário", err)
-		return
-	}
-	defer func() { _ = os.Remove(tmpPdf.Name()) }()
-	if _, err := io.Copy(tmpPdf, file); err != nil {
-		_ = tmpPdf.Close()
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-	if err := tmpPdf.Close(); err != nil {
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-
-	outPdf, err := os.CreateTemp("", "canivete-protected-*.pdf")
-	if err != nil {
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	outName := outPdf.Name()
-	if err := outPdf.Close(); err != nil {
-		_ = os.Remove(outName)
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	defer func() { _ = os.Remove(outName) }()
-
 	conf := model.NewDefaultConfiguration()
-	conf.UserPW = password
-	conf.OwnerPW = password
-
-	err = api.EncryptFile(tmpPdf.Name(), outName, conf)
-	if err != nil {
-		log.Printf("Erro ao proteger PDF: %v", err)
-		http.Error(w, "PDF inválido ou não suportado", http.StatusBadRequest)
-		return
-	}
-
-	// #nosec G304 -- outName é retornado por os.CreateTemp e nunca recebe entrada do usuário.
-	result, err := os.Open(outName)
-	if err != nil {
-		internalError(w, "Erro ao abrir PDF protegido", err)
-		return
-	}
-	defer result.Close()
-	if err := serveDownloadFile(w, result, "application/pdf", "protegido.pdf"); err != nil {
-		log.Printf("Erro ao enviar PDF protegido: %v", err)
-	}
+	conf.UserPW, conf.OwnerPW = password, password
+	transformPDF(w, r, "protegido.pdf", func(input io.ReadSeeker, output io.Writer) error {
+		return api.Encrypt(input, output, conf)
+	})
 }
 
 // PDF Optimize
@@ -261,61 +183,9 @@ func handlePdfOptimize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanupMultipartForm(r)
-
-	file, _, err := r.FormFile("pdf")
-	if err != nil {
-		http.Error(w, "Erro ao ler arquivo", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	tmpPdf, err := os.CreateTemp("", "canivete-opt-*.pdf")
-	if err != nil {
-		internalError(w, "Erro ao preparar PDF temporário", err)
-		return
-	}
-	defer func() { _ = os.Remove(tmpPdf.Name()) }()
-	if _, err := io.Copy(tmpPdf, file); err != nil {
-		_ = tmpPdf.Close()
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-	if err := tmpPdf.Close(); err != nil {
-		internalError(w, "Erro ao salvar PDF temporário", err)
-		return
-	}
-
-	outPdf, err := os.CreateTemp("", "canivete-optout-*.pdf")
-	if err != nil {
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	outName := outPdf.Name()
-	if err := outPdf.Close(); err != nil {
-		_ = os.Remove(outName)
-		internalError(w, "Erro ao preparar PDF de saída", err)
-		return
-	}
-	defer func() { _ = os.Remove(outName) }()
-
-	conf := model.NewDefaultConfiguration()
-	err = api.OptimizeFile(tmpPdf.Name(), outName, conf)
-	if err != nil {
-		log.Printf("Erro ao otimizar PDF: %v", err)
-		http.Error(w, "PDF inválido ou não suportado", http.StatusBadRequest)
-		return
-	}
-
-	// #nosec G304 -- outName é retornado por os.CreateTemp e nunca recebe entrada do usuário.
-	result, err := os.Open(outName)
-	if err != nil {
-		internalError(w, "Erro ao abrir PDF otimizado", err)
-		return
-	}
-	defer result.Close()
-	if err := serveDownloadFile(w, result, "application/pdf", "otimizado.pdf"); err != nil {
-		log.Printf("Erro ao enviar PDF otimizado: %v", err)
-	}
+	transformPDF(w, r, "otimizado.pdf", func(input io.ReadSeeker, output io.Writer) error {
+		return api.Optimize(input, output, model.NewDefaultConfiguration())
+	})
 }
 
 // Image Compress
@@ -362,8 +232,6 @@ func handleImgCompress(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Erro ao codificar imagem comprimida: %v", err)
 	}
 }
-
-// Image Watermark (skipped for brevity, but let's just implement a simple text watermark via pdfcpu or just skip it because drawing text on image requires freetype/golang.org/x/image/font which is complex to setup. Wait, I'll just skip image watermark and do something simpler, or use ImageMagick for it. Actually, I will NOT do Image Watermark right now to avoid complex font dependencies. I will remove it from the list of routes.)
 
 // QR Generate
 func handleQrGenerate(w http.ResponseWriter, r *http.Request) {
